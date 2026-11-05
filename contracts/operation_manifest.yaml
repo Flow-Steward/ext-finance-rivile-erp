@@ -58,9 +58,9 @@ operations:
   - blocked_address
 - operation_id: find_or_create_client
   display_name: Find or create customer / supplier
-  description: Looks the client up by client code, then registration code, then VAT number (GET /v1/clients);
-    several matches or conflicting codes are an error. Creates it (POST /v1/clients) only when none matches,
-    so running it again is safe — but not two runs at the same time.
+  description: Finds the client by code, which must exist, or finds it by registration code or VAT number
+    and creates it when none matches (GET and POST /v1/clients). Several matches or conflicting codes
+    are an error and nothing is created. Running it again is safe — but not two runs at the same time.
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -79,9 +79,9 @@ operations:
     schema:
       type: string
       title: Client code
-      description: Rivile ERP client code (code), looked up first; used as the new code when creating
-        (else Rivile numbers it). Several matches, or a match whose registration or VAT code differs from
-        the ones given, is an error and nothing is created. Letters, digits, spaces and . _ / - only.
+      description: 'The code of an existing client in Rivile ERP. When given, that client must exist:
+        the step never creates a client for a code, so a typo cannot add a second client. Letters, digits,
+        spaces and . _ / - only.'
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - &id003
@@ -91,8 +91,8 @@ operations:
     schema:
       type: string
       title: Registration code
-      description: Company registration code (regCode), looked up second. Letters, digits, spaces and
-        . _ / - only.
+      description: The company registration code, used to find the client, or to create it when no client
+        has this code. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - &id004
@@ -102,8 +102,8 @@ operations:
     schema:
       type: string
       title: VAT number
-      description: VAT payer code, e.g. LT100001234567 (vatNumber), looked up last. Letters, digits, spaces
-        and . _ / - only.
+      description: The VAT payer code, for example LT100001234567, used like the registration code. Letters,
+        digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - &id005
@@ -113,7 +113,7 @@ operations:
     schema:
       type: string
       title: Name
-      description: Client name, needed when the client has to be created (name).
+      description: The client's name, needed when the client has to be created.
       maxLength: 150
   - &id006
     name: client_type
@@ -125,7 +125,7 @@ operations:
       - 0
       - 1
       title: Client type
-      description: 0 — legal entity (JURIDICAL, default), 1 — individual (INDIVIDUAL); typeId.
+      description: 'Whether a new client is a company or a person. Default: legal entity.'
   - &id007
     name: address
     value_type: text
@@ -133,7 +133,7 @@ operations:
     schema:
       type: string
       title: Address
-      description: address.
+      description: The address saved on a new client.
       maxLength: 150
   - &id008
     name: email
@@ -142,7 +142,7 @@ operations:
     schema:
       type: string
       title: E-mail
-      description: email.
+      description: The e-mail address saved on a new client.
       maxLength: 150
   - &id009
     name: phone
@@ -151,7 +151,7 @@ operations:
     schema:
       type: string
       title: Phone
-      description: phone.
+      description: The phone number saved on a new client.
       maxLength: 150
   - &id010
     name: is_customer
@@ -160,7 +160,7 @@ operations:
     schema:
       type: boolean
       title: Customer
-      description: Mark the new client as a customer (isCustomer). Default true for sales.
+      description: 'Mark a new client as a customer. Default: yes for sales invoices.'
   - &id011
     name: is_supplier
     value_type: boolean
@@ -168,7 +168,7 @@ operations:
     schema:
       type: boolean
       title: Supplier
-      description: Mark the new client as a supplier (isSupplier). Default true for purchases.
+      description: 'Mark a new client as a supplier. Default: yes for purchase invoices.'
   outputs:
   - name: client_id
     value_type: text
@@ -183,6 +183,7 @@ operations:
       type:
       - string
       - 'null'
+      description: The client's code in Rivile ERP.
   - name: created
     value_type: boolean
     schema:
@@ -201,6 +202,7 @@ operations:
       type:
       - object
       - 'null'
+      description: The client as Rivile ERP returned it.
   - name: external_effect_status
     value_type: text
     schema:
@@ -237,10 +239,9 @@ operations:
   - timeout_unknown
 - operation_id: create_sales_invoice
   display_name: Create sales invoice
-  description: Creates a sales invoice with its lines (POST /v1/sale-invoices), finding or creating the
-    client first when no client code is given; lines beyond the first 100 are added one by one, and it
-    can post the document. If a later call fails, the step says exactly what was already created and is
-    not retried.
+  description: Creates a sales invoice with up to 100 lines in one request (POST /v1/sale-invoices), after
+    finding the client by code — or finding or creating it by registration or VAT code — and can post
+    it. If a later call fails, the step says exactly what was already created and is not retried.
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -265,9 +266,9 @@ operations:
     schema:
       type: string
       title: Number
-      description: Document number (documentNo). With a number the step first looks for a sales invoice
-        with this number for this client and returns it instead of creating a second one. Without it Rivile
-        numbers the document.
+      description: The document number. With a number the step first looks for a sales invoice with this
+        number for this client and returns it instead of creating a second one. Without it Rivile numbers
+        the document.
       maxLength: 50
   - name: date
     value_type: text
@@ -275,7 +276,7 @@ operations:
     schema:
       type: string
       title: Date
-      description: 'Operation date YYYY-MM-DD (opDate). Default: Rivile''s (today).'
+      description: 'The operation date, YYYY-MM-DD. Default: today.'
       maxLength: 10
       pattern: ^\d{4}-\d{2}-\d{2}$
   - name: document_date
@@ -284,7 +285,7 @@ operations:
     schema:
       type: string
       title: Document date
-      description: 'docDate, YYYY-MM-DD. Default: date.'
+      description: 'The date printed on the document, YYYY-MM-DD. Default: the operation date.'
       maxLength: 10
       pattern: ^\d{4}-\d{2}-\d{2}$
   - name: department_code
@@ -293,8 +294,8 @@ operations:
     schema:
       type: string
       title: Department
-      description: Department (warehouse) code for every line (departmentCode). Letters, digits, spaces
-        and . _ / - only.
+      description: The department (warehouse) code used for every line that does not name its own. Letters,
+        digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: currency_code
@@ -303,8 +304,8 @@ operations:
     schema:
       type: string
       title: Currency
-      description: 'Currency code, e.g. EUR (currencyCode). Default: the base currency. Letters, digits,
-        spaces and . _ / - only.'
+      description: 'The currency code, for example EUR. Default: the company''s base currency. Letters,
+        digits, spaces and . _ / - only.'
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: prices_include_tax
@@ -313,14 +314,14 @@ operations:
     schema:
       type: boolean
       title: Prices include VAT
-      description: isTaxIncluded.
+      description: Whether the line prices include VAT.
   - name: notes
     value_type: text
     required: false
     schema:
       type: string
       title: Notes
-      description: notes.
+      description: A note printed on the document.
       maxLength: 1000
   - name: lines
     value_type: array
@@ -328,7 +329,7 @@ operations:
     schema:
       type: array
       minItems: 1
-      maxItems: 1000
+      maxItems: 100
       items: &id012
         type: object
         additionalProperties: false
@@ -339,43 +340,44 @@ operations:
           item_code:
             type: string
             maxLength: 50
-            description: Product or service code (itemCode).
+            description: Product or service code.
           unit:
             type: string
             maxLength: 20
-            description: 'Unit of measure code, e.g. VNT (uomAltCode). Default: the product''s.'
+            description: 'Unit of measure code, for example VNT. Default: the product''s unit.'
           quantity:
             type:
             - number
             - string
-            description: Quantity in that unit (qtyAlt).
+            description: Quantity in that unit.
           price:
             type:
             - number
             - string
-            description: 'Unit price (price). Default: Rivile''s price list.'
+            description: 'Unit price. Default: the price from Rivile''s price list.'
           discount_percent:
             type:
             - number
             - string
-            description: discountPerc.
+            description: Discount in percent.
           department_code:
             type: string
             maxLength: 50
-            description: 'Department (warehouse) code for this line; default: the document''s.'
+            description: 'Department (warehouse) for this line. Default: the invoice''s.'
           notes:
             type: string
             maxLength: 500
+            description: A note on the line.
       title: Lines
-      description: Invoice lines. Rivile takes up to 100 lines when a document is created; further lines
-        are added one by one (POST …/lines).
+      description: The invoice lines, 1 to 100 — Rivile's limit for creating a document in one request.
+        For more, add lines afterwards with the Advanced create-line step.
   - name: post
     value_type: boolean
     required: false
     schema:
       type: boolean
       title: Post
-      description: Post the sales invoice after it is created (PATCH …/post).
+      description: Post the sales invoice once it is created.
   outputs:
   - name: document_id
     value_type: text
@@ -390,7 +392,7 @@ operations:
       type:
       - string
       - 'null'
-      description: documentNo.
+      description: The document number.
   - name: created
     value_type: boolean
     schema:
@@ -402,10 +404,12 @@ operations:
       type:
       - string
       - 'null'
+      description: The client's code.
   - name: client_created
     value_type: boolean
     schema:
       type: boolean
+      description: True when this step created the client.
   - name: lines_created
     value_type: integer
     schema:
@@ -417,24 +421,50 @@ operations:
       type:
       - string
       - 'null'
-      description: totalAmount, as an exact decimal.
+      description: Rivile's totalAmount, exact decimal.
   - name: total_tax
     value_type: text
     schema:
       type:
       - string
       - 'null'
-      description: totalTaxAmount.
+      description: Rivile's totalTaxAmount, exact decimal.
+  - name: total_with_tax
+    value_type: text
+    schema:
+      type:
+      - string
+      - 'null'
+      description: Rivile's totalAmountWithTax, exact decimal.
+  - name: status_id
+    value_type: integer
+    schema:
+      type:
+      - integer
+      - 'null'
+      description: Rivile's statusId of the document, as returned (its values are not documented).
   - name: posted
     value_type: boolean
     schema:
-      type: boolean
+      type:
+      - boolean
+      - 'null'
+      description: True when this step posted the document; null when an existing document was returned
+        and not posted by this step.
+  - name: post_note
+    value_type: text
+    schema:
+      type:
+      - string
+      - 'null'
+      description: Why Rivile refused to post an existing document, for example because it already is.
   - name: record
     value_type: object
     schema:
       type:
       - object
       - 'null'
+      description: The document as Rivile ERP returned it.
   - name: external_effect_status
     value_type: text
     schema:
@@ -452,7 +482,10 @@ operations:
   - result.lines_created
   - result.total_amount
   - result.total_tax
+  - result.total_with_tax
+  - result.status_id
   - result.posted
+  - result.post_note
   - result.record
   - result.external_effect_status
   - result.definitely_no_external_effect
@@ -476,10 +509,9 @@ operations:
   - timeout_unknown
 - operation_id: create_purchase_invoice
   display_name: Create purchase invoice
-  description: Creates a purchase invoice with its lines (POST /v1/purchase-invoices), finding or creating
-    the client first when no client code is given; lines beyond the first 100 are added one by one, and
-    it can post the document. If a later call fails, the step says exactly what was already created and
-    is not retried.
+  description: Creates a purchase invoice with up to 100 lines in one request (POST /v1/purchase-invoices),
+    after finding the client by code — or finding or creating it by registration or VAT code — and can
+    post it. If a later call fails, the step says exactly what was already created and is not retried.
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -504,8 +536,8 @@ operations:
     schema:
       type: string
       title: Number
-      description: Document number (documentNo). With a number the step first looks for a purchase invoice
-        with this number for this client and returns it instead of creating a second one. Without it Rivile
+      description: The document number. With a number the step first looks for a purchase invoice with
+        this number for this client and returns it instead of creating a second one. Without it Rivile
         numbers the document.
       maxLength: 50
   - name: date
@@ -514,7 +546,7 @@ operations:
     schema:
       type: string
       title: Date
-      description: 'Operation date YYYY-MM-DD (opDate). Default: Rivile''s (today).'
+      description: 'The operation date, YYYY-MM-DD. Default: today.'
       maxLength: 10
       pattern: ^\d{4}-\d{2}-\d{2}$
   - name: document_date
@@ -523,7 +555,7 @@ operations:
     schema:
       type: string
       title: Document date
-      description: 'docDate, YYYY-MM-DD. Default: date.'
+      description: 'The date printed on the document, YYYY-MM-DD. Default: the operation date.'
       maxLength: 10
       pattern: ^\d{4}-\d{2}-\d{2}$
   - name: department_code
@@ -532,8 +564,8 @@ operations:
     schema:
       type: string
       title: Department
-      description: Department (warehouse) code for every line (departmentCode). Letters, digits, spaces
-        and . _ / - only.
+      description: The department (warehouse) code used for every line that does not name its own. Letters,
+        digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: currency_code
@@ -542,8 +574,8 @@ operations:
     schema:
       type: string
       title: Currency
-      description: 'Currency code, e.g. EUR (currencyCode). Default: the base currency. Letters, digits,
-        spaces and . _ / - only.'
+      description: 'The currency code, for example EUR. Default: the company''s base currency. Letters,
+        digits, spaces and . _ / - only.'
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: prices_include_tax
@@ -552,14 +584,14 @@ operations:
     schema:
       type: boolean
       title: Prices include VAT
-      description: isTaxIncluded.
+      description: Whether the line prices include VAT.
   - name: notes
     value_type: text
     required: false
     schema:
       type: string
       title: Notes
-      description: notes.
+      description: A note printed on the document.
       maxLength: 1000
   - name: lines
     value_type: array
@@ -567,18 +599,18 @@ operations:
     schema:
       type: array
       minItems: 1
-      maxItems: 1000
+      maxItems: 100
       items: *id012
       title: Lines
-      description: Invoice lines. Rivile takes up to 100 lines when a document is created; further lines
-        are added one by one (POST …/lines).
+      description: The invoice lines, 1 to 100 — Rivile's limit for creating a document in one request.
+        For more, add lines afterwards with the Advanced create-line step.
   - name: post
     value_type: boolean
     required: false
     schema:
       type: boolean
       title: Post
-      description: Post the purchase invoice after it is created (PATCH …/post).
+      description: Post the purchase invoice once it is created.
   outputs:
   - name: document_id
     value_type: text
@@ -593,7 +625,7 @@ operations:
       type:
       - string
       - 'null'
-      description: documentNo.
+      description: The document number.
   - name: created
     value_type: boolean
     schema:
@@ -605,10 +637,12 @@ operations:
       type:
       - string
       - 'null'
+      description: The client's code.
   - name: client_created
     value_type: boolean
     schema:
       type: boolean
+      description: True when this step created the client.
   - name: lines_created
     value_type: integer
     schema:
@@ -620,24 +654,50 @@ operations:
       type:
       - string
       - 'null'
-      description: totalAmount, as an exact decimal.
+      description: Rivile's totalAmount, exact decimal.
   - name: total_tax
     value_type: text
     schema:
       type:
       - string
       - 'null'
-      description: totalTaxAmount.
+      description: Rivile's totalTaxAmount, exact decimal.
+  - name: total_with_tax
+    value_type: text
+    schema:
+      type:
+      - string
+      - 'null'
+      description: Rivile's totalAmountWithTax, exact decimal.
+  - name: status_id
+    value_type: integer
+    schema:
+      type:
+      - integer
+      - 'null'
+      description: Rivile's statusId of the document, as returned (its values are not documented).
   - name: posted
     value_type: boolean
     schema:
-      type: boolean
+      type:
+      - boolean
+      - 'null'
+      description: True when this step posted the document; null when an existing document was returned
+        and not posted by this step.
+  - name: post_note
+    value_type: text
+    schema:
+      type:
+      - string
+      - 'null'
+      description: Why Rivile refused to post an existing document, for example because it already is.
   - name: record
     value_type: object
     schema:
       type:
       - object
       - 'null'
+      description: The document as Rivile ERP returned it.
   - name: external_effect_status
     value_type: text
     schema:
@@ -655,7 +715,10 @@ operations:
   - result.lines_created
   - result.total_amount
   - result.total_tax
+  - result.total_with_tax
+  - result.status_id
   - result.posted
+  - result.post_note
   - result.record
   - result.external_effect_status
   - result.definitely_no_external_effect
@@ -694,7 +757,7 @@ operations:
     schema:
       type: string
       title: File id
-      description: The attachment id (attachments[].id).
+      description: The attachment's id, as listed in a document's attachments.
       maxLength: 36
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
   - name: document_type
@@ -716,14 +779,14 @@ operations:
       - sale_invoice
       - sale_order
       title: Document type
-      description: Where the attachment is.
+      description: The kind of record the file is attached to.
   - name: document_id
     value_type: text
     required: false
     schema:
       type: string
       title: Document id
-      description: The document's id (UUID).
+      description: The id (UUID) of the record the file is attached to.
       maxLength: 36
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
   - name: file_name
@@ -732,13 +795,14 @@ operations:
     schema:
       type: string
       title: File name
-      description: Pick the attachment with this name.
+      description: 'Take the attachment with this name. Default: the first attachment.'
       maxLength: 255
   outputs:
   - name: found
     value_type: boolean
     schema:
       type: boolean
+      description: False when the record has no attached file.
   - name: document_file
     value_type: artifact_handle
   - name: file_id
@@ -747,6 +811,7 @@ operations:
       type:
       - string
       - 'null'
+      description: The attachment's id.
   - name: original_filename
     value_type: text
     schema:
@@ -760,6 +825,7 @@ operations:
       type:
       - integer
       - 'null'
+      description: The file size in bytes.
   result_fields:
   - result.found
   - result.document_file
@@ -805,14 +871,14 @@ operations:
       - received
       - sent
       title: Direction
-      description: received (typeId 5) or sent (typeId 4).
+      description: Whether the money was received from the client or sent to them.
   - name: client_code
     value_type: text
     required: true
     schema:
       type: string
       title: Client code
-      description: clientCode. Letters, digits, spaces and . _ / - only.
+      description: The code of the client who paid or is paid. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: amount
@@ -823,14 +889,15 @@ operations:
       - string
       - number
       title: Amount
-      description: Amount in the payment currency (amountCur), e.g. 121.00.
+      description: The amount in the payment currency, for example 121.00.
   - name: currency_code
     value_type: text
     required: false
     schema:
       type: string
       title: Currency
-      description: 'currencyCode. Default: the base currency. Letters, digits, spaces and . _ / - only.'
+      description: 'The currency code. Default: the base currency. Letters, digits, spaces and . _ / -
+        only.'
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: date
@@ -839,7 +906,7 @@ operations:
     schema:
       type: string
       title: Date
-      description: 'opDate, YYYY-MM-DD. Default: today.'
+      description: 'The payment date, YYYY-MM-DD. Default: today.'
       maxLength: 10
       pattern: ^\d{4}-\d{2}-\d{2}$
   - name: account_code
@@ -848,7 +915,7 @@ operations:
     schema:
       type: string
       title: Money account
-      description: The bank or cash account code (accountCode). Letters, digits, spaces and . _ / - only.
+      description: The bank or cash account code. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: payment_method_code
@@ -857,7 +924,7 @@ operations:
     schema:
       type: string
       title: Payment method
-      description: paymentMethodCode. Letters, digits, spaces and . _ / - only.
+      description: The payment method code. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: document_no
@@ -866,7 +933,7 @@ operations:
     schema:
       type: string
       title: Number
-      description: documentNo.
+      description: The payment document number.
       maxLength: 50
   - name: purpose
     value_type: text
@@ -874,7 +941,7 @@ operations:
     schema:
       type: string
       title: Purpose
-      description: purposeText.
+      description: The payment purpose text.
       maxLength: 500
   - name: invoice_id
     value_type: text
@@ -882,7 +949,7 @@ operations:
     schema:
       type: string
       title: Invoice id
-      description: Link the payment to this invoice (UUID).
+      description: Link the payment to the invoice with this id (UUID).
       maxLength: 36
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
   - name: invoice_type
@@ -894,14 +961,14 @@ operations:
       - sale_invoice
       - purchase_invoice
       title: Invoice type
-      description: sale_invoice (default for received) or purchase_invoice.
+      description: 'The kind of invoice to link. Default: sales invoice for money received.'
   - name: post
     value_type: boolean
     required: false
     schema:
       type: boolean
       title: Post
-      description: Post the payment (PATCH /v1/payments/{id}/post).
+      description: Post the payment once it is created.
   outputs:
   - name: payment_id
     value_type: text
@@ -909,20 +976,24 @@ operations:
       type:
       - string
       - 'null'
+      description: The payment's id (UUID).
   - name: linked
     value_type: boolean
     schema:
       type: boolean
+      description: True when linked to the invoice.
   - name: posted
     value_type: boolean
     schema:
       type: boolean
+      description: True when this step posted the payment.
   - name: record
     value_type: object
     schema:
       type:
       - object
       - 'null'
+      description: The payment as Rivile ERP returned it.
   - name: external_effect_status
     value_type: text
     schema:
@@ -974,7 +1045,8 @@ operations:
     schema:
       type: string
       title: Product code
-      description: code; used as the new code when creating. Letters, digits, spaces and . _ / - only.
+      description: The product code, looked up first and used as the code of a new product. Letters, digits,
+        spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: barcode
@@ -983,7 +1055,7 @@ operations:
     schema:
       type: string
       title: Barcode
-      description: mainBarcode. Letters, digits, spaces and . _ / - only.
+      description: The main barcode, looked up second. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: name
@@ -992,7 +1064,7 @@ operations:
     schema:
       type: string
       title: Name
-      description: Needed when the product has to be created.
+      description: The product name, needed when it has to be created.
       maxLength: 150
   - name: product_type
     value_type: integer
@@ -1003,14 +1075,14 @@ operations:
       - 1
       - 2
       title: Product type
-      description: 1 — product (default), 2 — service; productTypeId.
+      description: 'Whether a new product is a stocked product or a service. Default: product.'
   - name: unit
     value_type: text
     required: false
     schema:
       type: string
       title: Unit
-      description: Unit of measure code for a new product, e.g. VNT (uomCode). Letters, digits, spaces
+      description: The unit of measure code for a new product, for example VNT. Letters, digits, spaces
         and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
@@ -1020,7 +1092,7 @@ operations:
     schema:
       type: string
       title: Description
-      description: description.
+      description: A description saved on a new product.
       maxLength: 1000
   outputs:
   - name: product_id
@@ -1029,28 +1101,33 @@ operations:
       type:
       - string
       - 'null'
+      description: The product's id (UUID).
   - name: product_code
     value_type: text
     schema:
       type:
       - string
       - 'null'
+      description: The product's code.
   - name: created
     value_type: boolean
     schema:
       type: boolean
+      description: True when this step created the product.
   - name: matched_by
     value_type: text
     schema:
       type:
       - string
       - 'null'
+      description: product_code or barcode.
   - name: record
     value_type: object
     schema:
       type:
       - object
       - 'null'
+      description: The product as Rivile ERP returned it.
   - name: external_effect_status
     value_type: text
     schema:
@@ -1101,7 +1178,7 @@ operations:
     schema:
       type: string
       title: Product code
-      description: productCode. Letters, digits, spaces and . _ / - only.
+      description: 'Only this product. Default: all products. Letters, digits, spaces and . _ / - only.'
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: department_code
@@ -1110,7 +1187,7 @@ operations:
     schema:
       type: string
       title: Department
-      description: departmentCode (warehouse). Letters, digits, spaces and . _ / - only.
+      description: Only this department (warehouse). Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - &id013
@@ -1122,30 +1199,32 @@ operations:
       minimum: 1
       maximum: 100
       title: Max pages
-      description: Pages of 100 records to read. Default 10.
+      description: How many pages of 100 records to read at most. Default 10.
   outputs:
   - name: items
     value_type: array
     schema:
       type: array
-      description: productCode, departmentCode, uomCode, available, in_warehouse, reserved.
+      description: 'One row per product, department and lot: available, in warehouse, reserved.'
   - name: count
     value_type: integer
     schema:
       type: integer
-  - name: total_available
-    value_type: text
+      description: Rows returned.
+  - name: totals
+    value_type: array
     schema:
-      type: string
-      description: Sum of qtyAvailable, as an exact decimal.
+      type: array
+      description: Available quantity summed per product and unit, as exact decimals.
   - name: has_more
     value_type: boolean
     schema:
       type: boolean
+      description: True when there are more rows to read.
   result_fields:
   - result.items
   - result.count
-  - result.total_available
+  - result.totals
   - result.has_more
   error_codes:
   - invalid_payload
@@ -1180,7 +1259,7 @@ operations:
     schema:
       type: string
       title: Product code
-      description: productCode. Letters, digits, spaces and . _ / - only.
+      description: The product whose prices to read. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: price_category_code
@@ -1189,7 +1268,7 @@ operations:
     schema:
       type: string
       title: Price category
-      description: priceCategoryCode. Letters, digits, spaces and . _ / - only.
+      description: Only prices of this price category. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: currency_code
@@ -1198,7 +1277,7 @@ operations:
     schema:
       type: string
       title: Currency
-      description: currencyCode. Letters, digits, spaces and . _ / - only.
+      description: Only prices in this currency. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: department_code
@@ -1207,7 +1286,7 @@ operations:
     schema:
       type: string
       title: Department
-      description: departmentCode. Letters, digits, spaces and . _ / - only.
+      description: Only prices of this department. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   outputs:
@@ -1215,15 +1294,21 @@ operations:
     value_type: array
     schema:
       type: array
-      description: price_excluding_tax, price_including_tax, valid_from, valid_to, currency, category,
-        unit.
+      description: Prices with and without VAT, validity dates, currency, category and unit.
   - name: count
     value_type: integer
     schema:
       type: integer
+      description: Prices returned.
+  - name: has_more
+    value_type: boolean
+    schema:
+      type: boolean
+      description: True when there are more prices to read.
   result_fields:
   - result.prices
   - result.count
+  - result.has_more
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -1275,36 +1360,49 @@ operations:
       - sale_prices
       - timesheet_schedules
       title: What
-      description: The list to read.
+      description: The kind of records to read.
   - name: since
     value_type: text
     required: true
     schema:
       type: string
       title: Since
-      description: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS(.SSS)Z.
+      description: 'Read records changed after this moment: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.SSSZ.'
       maxLength: 30
       pattern: ^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$
+  - name: page
+    value_type: integer
+    required: false
+    schema:
+      type: integer
+      minimum: 0
+      maximum: 1000000
+      title: Page
+      description: The page to start from, counted from 0; pass next_page to continue.
   - *id013
   outputs:
   - name: records
     value_type: array
     schema:
       type: array
+      description: The changed records, as Rivile ERP returned them.
   - name: count
     value_type: integer
     schema:
       type: integer
+      description: Records returned.
   - name: has_more
     value_type: boolean
     schema:
       type: boolean
+      description: True when there are more records to read.
   - name: next_page
     value_type: integer
     schema:
       type:
       - integer
       - 'null'
+      description: The page to continue from.
   result_fields:
   - result.records
   - result.count
@@ -1330,7 +1428,7 @@ operations:
 - operation_id: client_debt
   display_name: Client debt
   description: Open amounts of one client from the receivables and payables registry (GET /v1/pr-registries,
-    totalBaseDue), with the overdue part.
+    totalBaseDue), totalled per registry type, with the overdue part.
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -1344,7 +1442,7 @@ operations:
     schema:
       type: string
       title: Client code
-      description: clientCode. Letters, digits, spaces and . _ / - only.
+      description: The client whose open amounts to read. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - *id013
@@ -1353,31 +1451,45 @@ operations:
     value_type: text
     schema:
       type: string
-      description: Sum of totalBaseDue (base currency), exact decimal.
+      description: The sum of totalBaseDue over every row read, in the base currency. It adds up all registry
+        types; see totals_by_type. Partial when complete is false.
   - name: overdue
     value_type: text
     schema:
       type: string
-      description: Sum of totalBaseDue where overDueDays > 0.
+      description: The part of total_due with overDueDays above 0.
+  - name: totals_by_type
+    value_type: array
+    schema:
+      type: array
+      description: total_due, overdue and count per Rivile registry type (typeId, typeName).
   - name: documents
     value_type: array
     schema:
       type: array
-      description: document_no, date, due_date, due, overdue_days, currency, due_in_currency.
+      description: 'Each open document: number, type, dates, amount due and days overdue.'
   - name: count
     value_type: integer
     schema:
       type: integer
+      description: Documents returned.
+  - name: complete
+    value_type: boolean
+    schema:
+      type: boolean
+      description: False when more rows exist than were read.
   - name: has_more
     value_type: boolean
     schema:
       type: boolean
-      description: True when there were more records than were read.
+      description: True when there are more rows to read.
   result_fields:
   - result.total_due
   - result.overdue
+  - result.totals_by_type
   - result.documents
   - result.count
+  - result.complete
   - result.has_more
   error_codes:
   - invalid_payload
@@ -1397,10 +1509,9 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_clients
-  display_name: 'Advanced · Clients: Clients (GET /v1/clients)'
-  description: 'Returns Client list. Fields available for filtering: id, createdAt, priceCategoryId, importReference,
-    active, code, typeId, regCode, vatNumber, name, email, isCustomer, isSupplier, updatedAt, workflowStatusId,
-    workflowStatusCode, economicActivity. Rivile ERP: GET /v1/clients.'
+  display_name: Advanced · List clients
+  description: 'List clients. Up to 100 records per page; filters accept the fields Rivile documents for
+    this list. Rivile ERP: GET /v1/clients.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -1758,8 +1869,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_clients
-  display_name: 'Advanced · Clients: Create client (POST /v1/clients)'
-  description: 'Create new client. Rivile ERP: POST /v1/clients.'
+  display_name: Advanced · Create client
+  description: 'Create client. Rivile ERP: POST /v1/clients.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -2154,8 +2265,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_clients_id
-  display_name: 'Advanced · Clients: Get client (GET /v1/clients/{id})'
-  description: 'Returns full client by id. Rivile ERP: GET /v1/clients/{id}.'
+  display_name: Advanced · Get client
+  description: 'Get client. Rivile ERP: GET /v1/clients/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -2171,7 +2282,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -2402,8 +2513,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_clients_id
-  display_name: 'Advanced · Clients: Update client (PATCH /v1/clients/{id})'
-  description: 'Update existing client. Rivile ERP: PATCH /v1/clients/{id}.'
+  display_name: Advanced · Update client
+  description: 'Update client. Rivile ERP: PATCH /v1/clients/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -2420,7 +2531,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -2809,8 +2920,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_clients_id_workflow_status
-  display_name: 'Advanced · Clients: Update workflow status (PATCH /v1/clients/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/clients/{id}/workflow-status.'
+  display_name: Advanced · Update client workflow status
+  description: 'Update client workflow status. Rivile ERP: PATCH /v1/clients/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -2827,7 +2938,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -2905,9 +3016,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_contacts
-  display_name: 'Advanced · Contacts: Contacts (GET /v1/contacts)'
-  description: 'Returns Contact list. Fields available for filtering: id, code, name, title, email, phone,
-    clientId, clientCode, isMain, notes, active, updatedAt, createdAt. Rivile ERP: GET /v1/contacts.'
+  display_name: Advanced · List contacts
+  description: 'List contacts. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/contacts.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -3145,8 +3256,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_contacts
-  display_name: 'Advanced · Contacts: Create contact (POST /v1/contacts)'
-  description: 'Create new contact. Rivile ERP: POST /v1/contacts.'
+  display_name: Advanced · Create contact
+  description: 'Create contact. Rivile ERP: POST /v1/contacts.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -3305,8 +3416,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_contacts_id
-  display_name: 'Advanced · Contacts: Get contact (GET /v1/contacts/{id})'
-  description: 'Returns full contact by id. Rivile ERP: GET /v1/contacts/{id}.'
+  display_name: Advanced · Get contact
+  description: 'Get contact. Rivile ERP: GET /v1/contacts/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -3322,7 +3433,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -3425,8 +3536,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_contacts_id
-  display_name: 'Advanced · Contacts: Update contact (PATCH /v1/contacts/{id})'
-  description: 'Update existing contact. Rivile ERP: PATCH /v1/contacts/{id}.'
+  display_name: Advanced · Update contact
+  description: 'Update contact. Rivile ERP: PATCH /v1/contacts/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -3443,7 +3554,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -3593,11 +3704,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_deliveries
-  display_name: 'Advanced · Deliveries: Deliveries list (GET /v1/deliveries)'
-  description: 'Returns deliveries list. Fields available for filtering: id, createdAt, updatedAt, documentNo,
-    docReference, typeId, statusId, groupingCode, workflowStatusId, workflowStatusCode, departmentId,
-    departmentCode, ioDepartmentId, ioDepartmentCode, ioClientId, ioClientCode, journalId, journalCode.
-    Rivile ERP: GET /v1/deliveries.'
+  display_name: Advanced · List deliveries
+  description: 'List deliveries. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/deliveries.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -3904,8 +4013,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_deliveries
-  display_name: 'Advanced · Deliveries: Create delivery (POST /v1/deliveries)'
-  description: 'Creates new delivery. Rivile ERP: POST /v1/deliveries.'
+  display_name: Advanced · Create delivery
+  description: 'Create delivery. Rivile ERP: POST /v1/deliveries.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -4323,8 +4432,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_deliveries_delivery_id
-  display_name: 'Advanced · Deliveries: Delete delivery (DELETE /v1/deliveries/{deliveryId})'
-  description: 'Deletes delivery. Rivile ERP: DELETE /v1/deliveries/{deliveryId}.'
+  display_name: Advanced · Delete delivery
+  description: 'Delete delivery. Rivile ERP: DELETE /v1/deliveries/{deliveryId}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -4341,7 +4450,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -4402,8 +4511,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_deliveries_delivery_id
-  display_name: 'Advanced · Deliveries: Get delivery (GET /v1/deliveries/{deliveryId})'
-  description: 'Returns full delivery by id. Rivile ERP: GET /v1/deliveries/{deliveryId}.'
+  display_name: Advanced · Get delivery
+  description: 'Get delivery. Rivile ERP: GET /v1/deliveries/{deliveryId}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -4419,7 +4528,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -4583,8 +4692,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_deliveries_delivery_id
-  display_name: 'Advanced · Deliveries: Update delivery (PATCH /v1/deliveries/{deliveryId})'
-  description: 'Update existing delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}.'
+  display_name: Advanced · Update delivery
+  description: 'Update delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -4601,7 +4710,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -4926,8 +5035,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_deliveries_delivery_id_lines
-  display_name: 'Advanced · Deliveries: Create delivery line (POST /v1/deliveries/{deliveryId}/lines)'
-  description: 'Creates new line in delivery. Rivile ERP: POST /v1/deliveries/{deliveryId}/lines.'
+  display_name: Advanced · Create delivery line
+  description: 'Create delivery line. Rivile ERP: POST /v1/deliveries/{deliveryId}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -4944,7 +5053,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5176,8 +5285,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_deliveries_delivery_id_lines_line_id
-  display_name: 'Advanced · Deliveries: Delete delivery line (DELETE /v1/deliveries/{deliveryId}/lines/{lineId})'
-  description: 'Deletes delivery line. Rivile ERP: DELETE /v1/deliveries/{deliveryId}/lines/{lineId}.'
+  display_name: Advanced · Delete delivery line
+  description: 'Delete delivery line. Rivile ERP: DELETE /v1/deliveries/{deliveryId}/lines/{lineId}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -5194,7 +5303,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5204,7 +5313,7 @@ operations:
     schema:
       type: string
       title: Line id
-      description: The record's id (a UUID, as returned in id).
+      description: The line's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5265,8 +5374,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_deliveries_delivery_id_lines_line_id
-  display_name: 'Advanced · Deliveries: Get delivery line (GET /v1/deliveries/{deliveryId}/lines/{lineId})'
-  description: 'Returns full delivery line by id. Rivile ERP: GET /v1/deliveries/{deliveryId}/lines/{lineId}.'
+  display_name: Advanced · Get delivery line
+  description: 'Get delivery line. Rivile ERP: GET /v1/deliveries/{deliveryId}/lines/{lineId}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -5282,7 +5391,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5292,7 +5401,7 @@ operations:
     schema:
       type: string
       title: Line id
-      description: The record's id (a UUID, as returned in id).
+      description: The line's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5456,8 +5565,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_deliveries_delivery_id_lines_line_id
-  display_name: 'Advanced · Deliveries: Update delivery line (PATCH /v1/deliveries/{deliveryId}/lines/{lineId})'
-  description: 'Update existing delivery line. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/lines/{lineId}.'
+  display_name: Advanced · Update delivery line
+  description: 'Update delivery line. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/lines/{lineId}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -5474,7 +5583,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5484,7 +5593,7 @@ operations:
     schema:
       type: string
       title: Line id
-      description: The record's id (a UUID, as returned in id).
+      description: The line's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5702,7 +5811,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_deliveries_delivery_id_lines_line_id_workflow_status
-  display_name: 'Advanced · Deliveries: Update delivery line workflow status (PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status)'
+  display_name: Advanced · Update delivery line workflow status
   description: 'Update delivery line workflow status. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status.'
   operation_kind: action
   category: finance
@@ -5720,7 +5829,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5730,7 +5839,7 @@ operations:
     schema:
       type: string
       title: Line id
-      description: The record's id (a UUID, as returned in id).
+      description: The line's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5808,8 +5917,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_deliveries_delivery_id_post
-  display_name: 'Advanced · Deliveries: Post delivery (PATCH /v1/deliveries/{deliveryId}/post)'
-  description: 'Posts delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/post.'
+  display_name: Advanced · Post delivery
+  description: 'Post delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/post.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -5826,7 +5935,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5887,8 +5996,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_deliveries_delivery_id_unpost
-  display_name: 'Advanced · Deliveries: UnPost delivery (PATCH /v1/deliveries/{deliveryId}/unpost)'
-  description: 'UnPosts delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/unpost.'
+  display_name: Advanced · Unpost delivery
+  description: 'Unpost delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/unpost.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -5905,7 +6014,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -5966,7 +6075,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_deliveries_delivery_id_workflow_status
-  display_name: 'Advanced · Deliveries: Update delivery workflow status (PATCH /v1/deliveries/{deliveryId}/workflow-status)'
+  display_name: Advanced · Update delivery workflow status
   description: 'Update delivery workflow status. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/workflow-status.'
   operation_kind: action
   category: finance
@@ -5984,7 +6093,7 @@ operations:
     schema:
       type: string
       title: Delivery id
-      description: The record's id (a UUID, as returned in id).
+      description: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -6062,9 +6171,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_employees
-  display_name: 'Advanced · Employees: Employee and agreements (GET /v1/employees)'
-  description: 'Returns employee list with agreements. Fields available for filtering: id, code, name,
-    active updatedAt, createdAt, usedInPayrolls, mainDepartmentCode, positionCode. Rivile ERP: GET /v1/employees.'
+  display_name: Advanced · List employees with their agreements
+  description: 'List employees with their agreements. Up to 100 records per page; filters accept the fields
+    Rivile documents for this list. Rivile ERP: GET /v1/employees.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -6406,8 +6515,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_files_id_content
-  display_name: 'Advanced · Files: Get file content (GET /v1/files/{id}/content)'
-  description: 'Returns full file content by id. Rivile ERP: GET /v1/files/{id}/content.'
+  display_name: Advanced · Get file content
+  description: 'Get file content. Rivile ERP: GET /v1/files/{id}/content.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -6423,7 +6532,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -6481,9 +6590,9 @@ operations:
   - blocked_address
   - artifact_output_unavailable
 - operation_id: get_gift_cards
-  display_name: 'Advanced · Gift cards: Gift cards (GET /v1/gift-cards)'
-  description: 'Returns gift card list. Fields available for filtering: id, createdAt, updatedAt, code,
-    typeId, nominal, dateTo, serviceItemCode, serviceItemId. Rivile ERP: GET /v1/gift-cards.'
+  display_name: Advanced · List gift cards
+  description: 'List gift cards. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/gift-cards.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -6735,8 +6844,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_gift_cards
-  display_name: 'Advanced · Gift cards: Create gift card (POST /v1/gift-cards)'
-  description: 'Create new gift card. Rivile ERP: POST /v1/gift-cards.'
+  display_name: Advanced · Create gift card
+  description: 'Create gift card. Rivile ERP: POST /v1/gift-cards.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -6901,8 +7010,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_gift_cards_id
-  display_name: 'Advanced · Gift cards: Get gift card (GET /v1/gift-cards/{id})'
-  description: 'Returns full gift card by id. Rivile ERP: GET /v1/gift-cards/{id}.'
+  display_name: Advanced · Get gift card
+  description: 'Get gift card. Rivile ERP: GET /v1/gift-cards/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -6918,7 +7027,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -7031,8 +7140,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_gift_cards_id
-  display_name: 'Advanced · Gift cards: Update gift card (PATCH /v1/gift-cards/{id})'
-  description: 'Update existing gift card. Rivile ERP: PATCH /v1/gift-cards/{id}.'
+  display_name: Advanced · Update gift card
+  description: 'Update gift card. Rivile ERP: PATCH /v1/gift-cards/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -7049,7 +7158,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -7207,9 +7316,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_gift_cards_id_activate
-  display_name: 'Advanced · Gift cards: Activate gift card (PATCH /v1/gift-cards/{id}/activate)'
-  description: 'Activate existing gift card. Optionally can pass activationDate in request body. Rivile
-    ERP: PATCH /v1/gift-cards/{id}/activate.'
+  display_name: Advanced · Activate gift card
+  description: 'Activate gift card. An activationDate may be given in the body. Rivile ERP: PATCH /v1/gift-cards/{id}/activate.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -7226,7 +7334,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -7301,7 +7409,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_gift_cards_id_cancel
-  display_name: 'Advanced · Gift cards: Cancel gift card (PATCH /v1/gift-cards/{id}/cancel)'
+  display_name: Advanced · Cancel gift card
   description: 'Cancel gift card. Rivile ERP: PATCH /v1/gift-cards/{id}/cancel.'
   operation_kind: action
   category: finance
@@ -7319,7 +7427,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -7380,8 +7488,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_gift_cards_id_undo_cancellation
-  display_name: 'Advanced · Gift cards: Undo cancellation gift card (PATCH /v1/gift-cards/{id}/undo-cancellation)'
-  description: 'Undo cancellation gift card. Rivile ERP: PATCH /v1/gift-cards/{id}/undo-cancellation.'
+  display_name: Advanced · Undo cancellation of gift card
+  description: 'Undo cancellation of gift card. Rivile ERP: PATCH /v1/gift-cards/{id}/undo-cancellation.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -7398,7 +7506,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -7459,10 +7567,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_inventory_adjustments
-  display_name: 'Advanced · Inventory adjustments: Inventory adjustments list (GET /v1/inventory-adjustments)'
-  description: 'Returns inventory adjustments list. Fields available for filtering: id, createdAt, updatedAt,
-    documentNo, opDate, statusId, journalId, journalCode ,sourcingMethod, gpaisSaleMethod, assigneeId,
-    committeeId, docReference, importReference, notes. Rivile ERP: GET /v1/inventory-adjustments.'
+  display_name: Advanced · List inventory adjustments
+  description: 'List inventory adjustments. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/inventory-adjustments.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -7712,8 +7819,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_inventory_adjustments
-  display_name: 'Advanced · Inventory adjustments: Create inventory adjustment (POST /v1/inventory-adjustments)'
-  description: 'Creates new inventory adjustment. Rivile ERP: POST /v1/inventory-adjustments.'
+  display_name: Advanced · Create inventory adjustment
+  description: 'Create inventory adjustment. Rivile ERP: POST /v1/inventory-adjustments.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -7966,8 +8073,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_inventory_adjustments_id
-  display_name: 'Advanced · Inventory adjustments: Delete inventory adjustment (DELETE /v1/inventory-adjustments/{id})'
-  description: 'Deletes inventory adjustment. Rivile ERP: DELETE /v1/inventory-adjustments/{id}.'
+  display_name: Advanced · Delete inventory adjustment
+  description: 'Delete inventory adjustment. Rivile ERP: DELETE /v1/inventory-adjustments/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -7984,7 +8091,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -8045,8 +8152,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_inventory_adjustments_id
-  display_name: 'Advanced · Inventory adjustments: Get inventory adjustment (GET /v1/inventory-adjustments/{id})'
-  description: 'Returns full inventory adjustment by id. Rivile ERP: GET /v1/inventory-adjustments/{id}.'
+  display_name: Advanced · Get inventory adjustment
+  description: 'Get inventory adjustment. Rivile ERP: GET /v1/inventory-adjustments/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -8062,7 +8169,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -8172,8 +8279,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_inventory_adjustments_id_lines
-  display_name: 'Advanced · Inventory adjustments: Create inventory adjustment line (POST /v1/inventory-adjustments/{id}/lines)'
-  description: 'Creates new line in inventory adjustment. Rivile ERP: POST /v1/inventory-adjustments/{id}/lines.'
+  display_name: Advanced · Create inventory adjustment line
+  description: 'Create inventory adjustment line. Rivile ERP: POST /v1/inventory-adjustments/{id}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -8190,7 +8297,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -8417,8 +8524,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_inventory_adjustments_id_post
-  display_name: 'Advanced · Inventory adjustments: Post inventory adjustment (PATCH /v1/inventory-adjustments/{id}/post)'
-  description: 'Posts inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/post.'
+  display_name: Advanced · Post inventory adjustment
+  description: 'Post inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/post.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -8435,7 +8542,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -8496,8 +8603,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_inventory_adjustments_id_unpost
-  display_name: 'Advanced · Inventory adjustments: UnPost inventory adjustment (PATCH /v1/inventory-adjustments/{id}/unpost)'
-  description: 'UnPosts inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/unpost.'
+  display_name: Advanced · Unpost inventory adjustment
+  description: 'Unpost inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/unpost.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -8514,7 +8621,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -8575,10 +8682,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_inventory_movements
-  display_name: 'Advanced · Inventory movements: Inventory movements list (GET /v1/inventory-movements)'
-  description: 'Returns inventory movements list. Fields available for filtering: id, createdAt, updatedAt,
-    documentNo, opDate, statusId, journalId, journalCode, departmentOutId, departmentInId, assigneeId,
-    docReference, importReference, workflowStatusId, workflowStatusCode, notes. Rivile ERP: GET /v1/inventory-movements.'
+  display_name: Advanced · List inventory movements
+  description: 'List inventory movements. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/inventory-movements.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -8830,8 +8936,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_inventory_movements
-  display_name: 'Advanced · Inventory movements: Create inventory movement (POST /v1/inventory-movements)'
-  description: 'Creates new inventory movement. Rivile ERP: POST /v1/inventory-movements.'
+  display_name: Advanced · Create inventory movement
+  description: 'Create inventory movement. Rivile ERP: POST /v1/inventory-movements.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -9175,8 +9281,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_inventory_movements_id
-  display_name: 'Advanced · Inventory movements: Delete inventory movement (DELETE /v1/inventory-movements/{id})'
-  description: 'Deletes inventory movement. Rivile ERP: DELETE /v1/inventory-movements/{id}.'
+  display_name: Advanced · Delete inventory movement
+  description: 'Delete inventory movement. Rivile ERP: DELETE /v1/inventory-movements/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -9193,7 +9299,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -9254,8 +9360,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_inventory_movements_id
-  display_name: 'Advanced · Inventory movements: Get inventory movement (GET /v1/inventory-movements/{id})'
-  description: 'Returns full inventory movement by id. Rivile ERP: GET /v1/inventory-movements/{id}.'
+  display_name: Advanced · Get inventory movement
+  description: 'Get inventory movement. Rivile ERP: GET /v1/inventory-movements/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -9271,7 +9377,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -9390,8 +9496,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_inventory_movements_id_lines
-  display_name: 'Advanced · Inventory movements: Create inventory movement line (POST /v1/inventory-movements/{id}/lines)'
-  description: 'Creates new line in in inventory movement. Rivile ERP: POST /v1/inventory-movements/{id}/lines.'
+  display_name: Advanced · Create inventory movement line
+  description: 'Create inventory movement line. Rivile ERP: POST /v1/inventory-movements/{id}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -9408,7 +9514,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -9668,8 +9774,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_inventory_movements_id_post
-  display_name: 'Advanced · Inventory movements: Post inventory movement (PATCH /v1/inventory-movements/{id}/post)'
-  description: 'Posts inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/post.'
+  display_name: Advanced · Post inventory movement
+  description: 'Post inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/post.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -9686,7 +9792,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -9747,8 +9853,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_inventory_movements_id_unpost
-  display_name: 'Advanced · Inventory movements: UnPost inventory movement (PATCH /v1/inventory-movements/{id}/unpost)'
-  description: 'UnPosts inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/unpost.'
+  display_name: Advanced · Unpost inventory movement
+  description: 'Unpost inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/unpost.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -9765,7 +9871,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -9826,8 +9932,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_inventory_movements_id_workflow_status
-  display_name: 'Advanced · Inventory movements: Update workflow status (PATCH /v1/inventory-movements/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/inventory-movements/{id}/workflow-status.'
+  display_name: Advanced · Update inventory movement workflow status
+  description: 'Update inventory movement workflow status. Rivile ERP: PATCH /v1/inventory-movements/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -9844,7 +9950,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -9922,10 +10028,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_inventory_stocks
-  display_name: 'Advanced · Inventory stock: Inventory stock (GET /v1/inventory-stocks)'
-  description: 'Returns Inventory stock list. Fields available for filtering: productId, productCode,
-    serial, uomId, uomCode, departmentId, departmentCode, lotId, lotCode, markId, markCode, objectId,
-    objectCode, qtyAltAvailable qtyAltWarehouse. Rivile ERP: GET /v1/inventory-stocks.'
+  display_name: Advanced · List inventory stock
+  description: 'List inventory stock. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/inventory-stocks.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -10212,9 +10317,9 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_lots
-  display_name: 'Advanced · Lots: Lots (GET /v1/lots)'
-  description: 'Returns Lot list. Fields available for filtering: id, createdAt, updatedAt, active, code,
-    name, expirationDate. Rivile ERP: GET /v1/lots.'
+  display_name: Advanced · List lots
+  description: 'List lots. Up to 100 records per page; filters accept the fields Rivile documents for
+    this list. Rivile ERP: GET /v1/lots.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -10439,8 +10544,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_lots
-  display_name: 'Advanced · Lots: Create lot (POST /v1/lots)'
-  description: 'Create new lot. Rivile ERP: POST /v1/lots.'
+  display_name: Advanced · Create lot
+  description: 'Create lot. Rivile ERP: POST /v1/lots.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -10580,8 +10685,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_lots_id
-  display_name: 'Advanced · Lots: Get lot (GET /v1/lots/{id})'
-  description: 'Returns full lot by id. Rivile ERP: GET /v1/lots/{id}.'
+  display_name: Advanced · Get lot
+  description: 'Get lot. Rivile ERP: GET /v1/lots/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -10597,7 +10702,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -10685,8 +10790,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_lots_id
-  display_name: 'Advanced · Lots: Update lot (PATCH /v1/lots/{id})'
-  description: 'Update existing lot. Rivile ERP: PATCH /v1/lots/{id}.'
+  display_name: Advanced · Update lot
+  description: 'Update lot. Rivile ERP: PATCH /v1/lots/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -10703,7 +10808,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -10836,10 +10941,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_manufactures
-  display_name: 'Advanced · Manufacturing: Manufactures list (GET /v1/manufactures)'
-  description: 'Returns manufactures list. Fields available for filtering: id, createdAt, updatedAt, documentNo,
-    opDate, statusId, journalId, journalCode, assigneeId, docReference, importReference, workflowStatusId,
-    workflowStatusCode, notes. Rivile ERP: GET /v1/manufactures.'
+  display_name: Advanced · List manufactures
+  description: 'List manufactures. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/manufactures.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -11084,8 +11188,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_manufactures
-  display_name: 'Advanced · Manufacturing: Create manufacture (POST /v1/manufactures)'
-  description: 'Creates new manufacture. Rivile ERP: POST /v1/manufactures.'
+  display_name: Advanced · Create manufacture
+  description: 'Create manufacture. Rivile ERP: POST /v1/manufactures.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -11337,8 +11441,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_manufactures_id
-  display_name: 'Advanced · Manufacturing: Delete manufacture (DELETE /v1/manufactures/{id})'
-  description: 'Deletes manufacture. Rivile ERP: DELETE /v1/manufactures/{id}.'
+  display_name: Advanced · Delete manufacture
+  description: 'Delete manufacture. Rivile ERP: DELETE /v1/manufactures/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -11355,7 +11459,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -11416,8 +11520,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_manufactures_id
-  display_name: 'Advanced · Manufacturing: Get manufacture (GET /v1/manufactures/{id})'
-  description: 'Returns full manufacture by id. Rivile ERP: GET /v1/manufactures/{id}.'
+  display_name: Advanced · Get manufacture
+  description: 'Get manufacture. Rivile ERP: GET /v1/manufactures/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -11433,7 +11537,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -11539,8 +11643,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_manufactures_id_lines
-  display_name: 'Advanced · Manufacturing: Create manufacture line (POST /v1/manufactures/{id}/lines)'
-  description: 'Creates new line in manufacture. Rivile ERP: POST /v1/manufactures/{id}/lines.'
+  display_name: Advanced · Create manufacture line
+  description: 'Create manufacture line. Rivile ERP: POST /v1/manufactures/{id}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -11557,7 +11661,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -11801,8 +11905,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_manufactures_id_post
-  display_name: 'Advanced · Manufacturing: Post manufacture (PATCH /v1/manufactures/{id}/post)'
-  description: 'Posts manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/post.'
+  display_name: Advanced · Post manufacture
+  description: 'Post manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/post.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -11819,7 +11923,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -11880,8 +11984,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_manufactures_id_unpost
-  display_name: 'Advanced · Manufacturing: UnPost manufacture (PATCH /v1/manufactures/{id}/unpost)'
-  description: 'UnPosts manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/unpost.'
+  display_name: Advanced · Unpost manufacture
+  description: 'Unpost manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/unpost.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -11898,7 +12002,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -11959,8 +12063,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_manufactures_id_workflow_status
-  display_name: 'Advanced · Manufacturing: Update workflow status (PATCH /v1/manufactures/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/manufactures/{id}/workflow-status.'
+  display_name: Advanced · Update manufacture workflow status
+  description: 'Update manufacture workflow status. Rivile ERP: PATCH /v1/manufactures/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -11977,7 +12081,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -12055,12 +12159,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_payments
-  display_name: 'Advanced · Payments: Payments (GET /v1/payments)'
-  description: 'Returns Payments list. Fields available for filtering: id documentNo opDate statusId typeId
-    paymentMethodId paymentMethodCode accountId accountCode currencyId currencyCode clientId clientCode
-    documentTypeId prAccountId prAccountCode departmentId departmentCode objectId objectCode journalId
-    journalCode documentRef assigneeId assigneeCode workflowStatusId workflowStatusCode. Rivile ERP: GET
-    /v1/payments.'
+  display_name: Advanced · List payments
+  description: 'List payments. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/payments.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -12457,8 +12558,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_payments
-  display_name: 'Advanced · Payments: Create payment (POST /v1/payments)'
-  description: 'Creates new payment. Rivile ERP: POST /v1/payments.'
+  display_name: Advanced · Create payment
+  description: 'Create payment. Rivile ERP: POST /v1/payments.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -12892,8 +12993,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_payments_id
-  display_name: 'Advanced · Payments: Get payment (GET /v1/payments/{id})'
-  description: 'Returns full payment by id. Rivile ERP: GET /v1/payments/{id}.'
+  display_name: Advanced · Get payment
+  description: 'Get payment. Rivile ERP: GET /v1/payments/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -12909,7 +13010,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -13146,8 +13247,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_payments_id_cancel
-  display_name: 'Advanced · Payments: Cancel payment (PATCH /v1/payments/{id}/cancel)'
-  description: 'Cancels payment. Rivile ERP: PATCH /v1/payments/{id}/cancel.'
+  display_name: Advanced · Cancel payment
+  description: 'Cancel payment. Rivile ERP: PATCH /v1/payments/{id}/cancel.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -13164,7 +13265,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -13225,8 +13326,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_payments_id_link_payment
-  display_name: 'Advanced · Payments: Link payment (PATCH /v1/payments/{id}/link-payment)'
-  description: 'Links payment to specific document. Rivile ERP: PATCH /v1/payments/{id}/link-payment.'
+  display_name: Advanced · Link payment
+  description: 'Link payment. Links the payment to a sale or purchase invoice or order. Rivile ERP: PATCH
+    /v1/payments/{id}/link-payment.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -13243,7 +13345,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -13322,8 +13424,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_payments_id_post
-  display_name: 'Advanced · Payments: Post payment (PATCH /v1/payments/{id}/post)'
-  description: 'Posts payment. Rivile ERP: PATCH /v1/payments/{id}/post.'
+  display_name: Advanced · Post payment
+  description: 'Post payment. Rivile ERP: PATCH /v1/payments/{id}/post.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -13340,7 +13442,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -13401,8 +13503,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_payments_id_undo_cancellation
-  display_name: 'Advanced · Payments: Undo cancellation payment (PATCH /v1/payments/{id}/undo-cancellation)'
-  description: 'Undoes cancellation for payment. Rivile ERP: PATCH /v1/payments/{id}/undo-cancellation.'
+  display_name: Advanced · Undo cancellation of payment
+  description: 'Undo cancellation of payment. Rivile ERP: PATCH /v1/payments/{id}/undo-cancellation.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -13419,7 +13521,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -13480,8 +13582,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_payments_id_unpost
-  display_name: 'Advanced · Payments: UnPost payment (PATCH /v1/payments/{id}/unpost)'
-  description: 'UnPosts payment. Rivile ERP: PATCH /v1/payments/{id}/unpost.'
+  display_name: Advanced · Unpost payment
+  description: 'Unpost payment. Rivile ERP: PATCH /v1/payments/{id}/unpost.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -13498,7 +13600,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -13559,8 +13661,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_payments_id_workflow_status
-  display_name: 'Advanced · Payments: Update workflow status (PATCH /v1/payments/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/payments/{id}/workflow-status.'
+  display_name: Advanced · Update payment workflow status
+  description: 'Update payment workflow status. Rivile ERP: PATCH /v1/payments/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -13577,7 +13679,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -13655,10 +13757,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_products
-  display_name: 'Advanced · Products: Products (GET /v1/products)'
-  description: 'Returns Product list. Fields available for filtering: id, createdAt, active, code, mainBarcode,
-    importReference, productTypeId, priceStrategyId, bomTypeId, name, updatedAt, workflowStatusId, workflowStatusCode,
-    mainProductGroupName, mainProductGroupCode, mainProductGroupId, isEcommerce. Rivile ERP: GET /v1/products.'
+  display_name: Advanced · List products
+  description: 'List products. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/products.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -14000,8 +14101,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_products
-  display_name: 'Advanced · Products: Create product (POST /v1/products)'
-  description: 'Create new product. Rivile ERP: POST /v1/products.'
+  display_name: Advanced · Create product
+  description: 'Create product. Rivile ERP: POST /v1/products.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -14412,8 +14513,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_products_product_uom_id
-  display_name: 'Advanced · Products: Update product unit of measure (PATCH /v1/products/product-uom/{id})'
-  description: 'Update existing product unit of measure. Rivile ERP: PATCH /v1/products/product-uom/{id}.'
+  display_name: Advanced · Update product unit of measure
+  description: 'Update product unit of measure. Rivile ERP: PATCH /v1/products/product-uom/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -14430,7 +14531,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -14591,8 +14692,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_products_id
-  display_name: 'Advanced · Products: Get product (GET /v1/products/{id})'
-  description: 'Returns full product by id. Rivile ERP: GET /v1/products/{id}.'
+  display_name: Advanced · Get product
+  description: 'Get product. Rivile ERP: GET /v1/products/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -14608,7 +14709,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -14832,8 +14933,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_products_id
-  display_name: 'Advanced · Products: Update product (PATCH /v1/products/{id})'
-  description: 'Update existing product. Rivile ERP: PATCH /v1/products/{id}.'
+  display_name: Advanced · Update product
+  description: 'Update product. Rivile ERP: PATCH /v1/products/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -14850,7 +14951,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -15201,8 +15302,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_products_id_price
-  display_name: 'Advanced · Products: Create product price (POST /v1/products/{id}/price)'
-  description: 'Create new product price. Rivile ERP: POST /v1/products/{id}/price.'
+  display_name: Advanced · Create product price
+  description: 'Create product price. Rivile ERP: POST /v1/products/{id}/price.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -15219,7 +15320,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -15377,8 +15478,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_products_id_product_uom
-  display_name: 'Advanced · Products: Create product unit of measure (POST /v1/products/{id}/product-uom)'
-  description: 'Create new product unit of measure in product. Rivile ERP: POST /v1/products/{id}/product-uom.'
+  display_name: Advanced · Create product unit of measure
+  description: 'Create product unit of measure. Rivile ERP: POST /v1/products/{id}/product-uom.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -15395,7 +15496,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -15635,8 +15736,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_products_id_workflow_status
-  display_name: 'Advanced · Products: Update workflow status (PATCH /v1/products/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/products/{id}/workflow-status.'
+  display_name: Advanced · Update product workflow status
+  description: 'Update product workflow status. Rivile ERP: PATCH /v1/products/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -15653,7 +15754,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -15731,11 +15832,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_purchase_invoices
-  display_name: 'Advanced · Purchase invoices: Purchase invoices list (GET /v1/purchase-invoices)'
-  description: 'Returns purchase invoices list. Fields available for filtering: id, createdAt, clientId,
-    clientCode journalId, journalCode, supplierAgreementId, supplierAgreementCode, isSent, opDate, docDate,
-    typeId, documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode.
-    Rivile ERP: GET /v1/purchase-invoices.'
+  display_name: Advanced · List purchase invoices
+  description: 'List purchase invoices. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/purchase-invoices.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -16096,8 +16195,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_purchase_invoices
-  display_name: 'Advanced · Purchase invoices: Create purchase invoice (POST /v1/purchase-invoices)'
-  description: 'Creates new purchase invoice. Rivile ERP: POST /v1/purchase-invoices.'
+  display_name: Advanced · Create purchase invoice
+  description: 'Create purchase invoice. Rivile ERP: POST /v1/purchase-invoices.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -16845,8 +16944,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_purchase_invoices_from_purchase_order_id
-  display_name: 'Advanced · Purchase invoices: Create purchase invoice from order (POST /v1/purchase-invoices/from/purchase-order/{id})'
-  description: 'Creates purchase invoice from order. Rivile ERP: POST /v1/purchase-invoices/from/purchase-order/{id}.'
+  display_name: Advanced · Create purchase invoice from order
+  description: 'Create purchase invoice from order. Rivile ERP: POST /v1/purchase-invoices/from/purchase-order/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -16863,7 +16962,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -16941,8 +17040,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_purchase_invoices_id
-  display_name: 'Advanced · Purchase invoices: Delete purchase invoice (DELETE /v1/purchase-invoices/{id})'
-  description: 'Deletes purchase invoice. Rivile ERP: DELETE /v1/purchase-invoices/{id}.'
+  display_name: Advanced · Delete purchase invoice
+  description: 'Delete purchase invoice. Rivile ERP: DELETE /v1/purchase-invoices/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -16959,7 +17058,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -17020,8 +17119,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_purchase_invoices_id
-  display_name: 'Advanced · Purchase invoices: Get purchase invoice (GET /v1/purchase-invoices/{id})'
-  description: 'Returns full purchase invoice by id. Rivile ERP: GET /v1/purchase-invoices/{id}.'
+  display_name: Advanced · Get purchase invoice
+  description: 'Get purchase invoice. Rivile ERP: GET /v1/purchase-invoices/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -17037,7 +17136,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -17272,8 +17371,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_purchase_invoices_id_cancel
-  display_name: 'Advanced · Purchase invoices: Cancel purchase invoice (PATCH /v1/purchase-invoices/{id}/cancel)'
-  description: 'Cancels purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/cancel.'
+  display_name: Advanced · Cancel purchase invoice
+  description: 'Cancel purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/cancel.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -17290,7 +17389,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -17351,8 +17450,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_purchase_invoices_id_fixed_payments
-  display_name: 'Advanced · Purchase invoices: Create fixed payment for purchase invoice (POST /v1/purchase-invoices/{id}/fixed-payments)'
-  description: 'Creates fixed payment for purchase invoice. Rivile ERP: POST /v1/purchase-invoices/{id}/fixed-payments.'
+  display_name: Advanced · Create fixed payment for purchase invoice
+  description: 'Create fixed payment for purchase invoice. Rivile ERP: POST /v1/purchase-invoices/{id}/fixed-payments.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -17369,7 +17468,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -17587,8 +17686,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_purchase_invoices_id_lines
-  display_name: 'Advanced · Purchase invoices: Create purchase invoice line (POST /v1/purchase-invoices/{id}/lines)'
-  description: 'Creates new line in purchase invoice. Rivile ERP: POST /v1/purchase-invoices/{id}/lines.'
+  display_name: Advanced · Create purchase invoice line
+  description: 'Create purchase invoice line. Rivile ERP: POST /v1/purchase-invoices/{id}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -17605,7 +17704,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -17977,8 +18076,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_purchase_invoices_id_post
-  display_name: 'Advanced · Purchase invoices: Post purchase invoice (PATCH /v1/purchase-invoices/{id}/post)'
-  description: 'Posts purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/post.'
+  display_name: Advanced · Post purchase invoice
+  description: 'Post purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/post.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -17995,7 +18094,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -18056,8 +18155,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_purchase_invoices_id_undo_cancellation
-  display_name: 'Advanced · Purchase invoices: Undo cancellation purchase invoice (PATCH /v1/purchase-invoices/{id}/undo-cancellation)'
-  description: 'Undoes cancellation of purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/undo-cancellation.'
+  display_name: Advanced · Undo cancellation of purchase invoice
+  description: 'Undo cancellation of purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/undo-cancellation.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -18074,7 +18173,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -18135,8 +18234,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_purchase_invoices_id_unpost
-  display_name: 'Advanced · Purchase invoices: UnPost purchase invoice (PATCH /v1/purchase-invoices/{id}/unpost)'
-  description: 'UnPosts purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/unpost.'
+  display_name: Advanced · Unpost purchase invoice
+  description: 'Unpost purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/unpost.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -18153,7 +18252,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -18214,8 +18313,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_purchase_invoices_id_workflow_status
-  display_name: 'Advanced · Purchase invoices: Update workflow status (PATCH /v1/purchase-invoices/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/purchase-invoices/{id}/workflow-status.'
+  display_name: Advanced · Update purchase invoice workflow status
+  description: 'Update purchase invoice workflow status. Rivile ERP: PATCH /v1/purchase-invoices/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -18232,7 +18331,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -18310,11 +18409,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_purchase_orders
-  display_name: 'Advanced · Purchase orders: Purchase orders list (GET /v1/purchase-orders)'
-  description: 'Returns purchase orders list. Fields available for filtering: id, createdAt, clientId,
-    clientCode, journalId, journalCode, supplierAgreementId, supplierAgreementCode, isSent, opDate, docDate,
-    documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode.
-    Rivile ERP: GET /v1/purchase-orders.'
+  display_name: Advanced · List purchase orders
+  description: 'List purchase orders. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/purchase-orders.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -18664,8 +18761,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_purchase_orders
-  display_name: 'Advanced · Purchase orders: Create purchase order (POST /v1/purchase-orders)'
-  description: 'Create new purchase order. Rivile ERP: POST /v1/purchase-orders.'
+  display_name: Advanced · Create purchase order
+  description: 'Create purchase order. Rivile ERP: POST /v1/purchase-orders.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -19337,8 +19434,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_purchase_orders_lines_id
-  display_name: 'Advanced · Purchase orders: Get purchase order line (GET /v1/purchase-orders/lines/{id})'
-  description: 'Returns purchase order line by id. Rivile ERP: GET /v1/purchase-orders/lines/{id}.'
+  display_name: Advanced · Get purchase order line
+  description: 'Get purchase order line. Rivile ERP: GET /v1/purchase-orders/lines/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -19354,7 +19451,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -19539,8 +19636,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: delete_purchase_orders_id
-  display_name: 'Advanced · Purchase orders: Delete purchase order (DELETE /v1/purchase-orders/{id})'
-  description: 'Deletes purchase order. Rivile ERP: DELETE /v1/purchase-orders/{id}.'
+  display_name: Advanced · Delete purchase order
+  description: 'Delete purchase order. Rivile ERP: DELETE /v1/purchase-orders/{id}.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -19557,7 +19654,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -19618,8 +19715,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_purchase_orders_id
-  display_name: 'Advanced · Purchase orders: Get purchase order (GET /v1/purchase-orders/{id})'
-  description: 'Returns full purchase order by id. Rivile ERP: GET /v1/purchase-orders/{id}.'
+  display_name: Advanced · Get purchase order
+  description: 'Get purchase order. Rivile ERP: GET /v1/purchase-orders/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -19635,7 +19732,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -19868,8 +19965,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_purchase_orders_id_approve
-  display_name: 'Advanced · Purchase orders: Approve purchase order (PATCH /v1/purchase-orders/{id}/approve)'
-  description: 'Approves purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/approve.'
+  display_name: Advanced · Approve purchase order
+  description: 'Approve purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/approve.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -19886,7 +19983,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -19947,8 +20044,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_purchase_orders_id_cancel_approve
-  display_name: 'Advanced · Purchase orders: Cancel approve purchase order (PATCH /v1/purchase-orders/{id}/cancel-approve)'
-  description: 'Cancels approval of purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/cancel-approve.'
+  display_name: Advanced · Cancel approval of purchase order
+  description: 'Cancel approval of purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/cancel-approve.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -19965,7 +20062,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -20026,8 +20123,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_purchase_orders_id_lines
-  display_name: 'Advanced · Purchase orders: Create purchase order line (POST /v1/purchase-orders/{id}/lines)'
-  description: 'Creates new line in purchase order. Rivile ERP: POST /v1/purchase-orders/{id}/lines.'
+  display_name: Advanced · Create purchase order line
+  description: 'Create purchase order line. Rivile ERP: POST /v1/purchase-orders/{id}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -20044,7 +20141,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -20416,8 +20513,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_purchase_orders_id_workflow_status
-  display_name: 'Advanced · Purchase orders: Update workflow status (PATCH /v1/purchase-orders/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/purchase-orders/{id}/workflow-status.'
+  display_name: Advanced · Update purchase order workflow status
+  description: 'Update purchase order workflow status. Rivile ERP: PATCH /v1/purchase-orders/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -20434,7 +20531,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -20512,9 +20609,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_pr_registries
-  display_name: 'Advanced · Receivables and payables: PR registry (GET /v1/pr-registries)'
-  description: 'Returns PR Registry list. Fields available for filtering: id, clientId, clientCode, clientName,
-    documentNo, date, dueDate, totalCurDue, refModuleId, refId, typeId. Rivile ERP: GET /v1/pr-registries.'
+  display_name: Advanced · List receivables and payables
+  description: 'List receivables and payables. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/pr-registries.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -20808,11 +20905,9 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_sale_invoices
-  display_name: 'Advanced · Sale invoices: Sale invoices list (GET /v1/sale-invoices)'
-  description: 'Returns sale invoices list. Fields available for filtering: id, createdAt, clientId, clientCode,
-    journalId, journalCode, customerAgreementId, customerAgreementCode, isSent, opDate, docDate, typeId,
-    documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode.
-    Rivile ERP: GET /v1/sale-invoices.'
+  display_name: Advanced · List sale invoices
+  description: 'List sale invoices. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/sale-invoices.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -21166,8 +21261,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_sale_invoices
-  display_name: 'Advanced · Sale invoices: Create sale invoice (POST /v1/sale-invoices)'
-  description: 'Create new sale invoice. Rivile ERP: POST /v1/sale-invoices.'
+  display_name: Advanced · Create sale invoice
+  description: 'Create sale invoice. Rivile ERP: POST /v1/sale-invoices.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -21849,7 +21944,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_sale_invoices_from_sale_order_id
-  display_name: 'Advanced · Sale invoices: Create sale invoice from order (POST /v1/sale-invoices/from/sale-order/{id})'
+  display_name: Advanced · Create sale invoice from order
   description: 'Create sale invoice from order. Rivile ERP: POST /v1/sale-invoices/from/sale-order/{id}.'
   operation_kind: action
   category: finance
@@ -21867,7 +21962,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -21945,7 +22040,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_sale_invoices_id
-  display_name: 'Advanced · Sale invoices: Delete sale invoice (DELETE /v1/sale-invoices/{id})'
+  display_name: Advanced · Delete sale invoice
   description: 'Delete sale invoice. Rivile ERP: DELETE /v1/sale-invoices/{id}.'
   operation_kind: action
   category: finance
@@ -21963,7 +22058,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -22024,8 +22119,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_sale_invoices_id
-  display_name: 'Advanced · Sale invoices: Get sale invoice (GET /v1/sale-invoices/{id})'
-  description: 'Returns full sale invoice by id. Rivile ERP: GET /v1/sale-invoices/{id}.'
+  display_name: Advanced · Get sale invoice
+  description: 'Get sale invoice. Rivile ERP: GET /v1/sale-invoices/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -22041,7 +22136,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -22273,7 +22368,7 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_sale_invoices_id_cancel
-  display_name: 'Advanced · Sale invoices: Cancel sale invoice (PATCH /v1/sale-invoices/{id}/cancel)'
+  display_name: Advanced · Cancel sale invoice
   description: 'Cancel sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/cancel.'
   operation_kind: action
   category: finance
@@ -22291,7 +22386,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -22352,7 +22447,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_sale_invoices_id_fixed_payments
-  display_name: 'Advanced · Sale invoices: Create fixed payment for sale invoice (POST /v1/sale-invoices/{id}/fixed-payments)'
+  display_name: Advanced · Create fixed payment for sale invoice
   description: 'Create fixed payment for sale invoice. Rivile ERP: POST /v1/sale-invoices/{id}/fixed-payments.'
   operation_kind: action
   category: finance
@@ -22370,7 +22465,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -22588,8 +22683,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_sale_invoices_id_lines
-  display_name: 'Advanced · Sale invoices: Create sale invoice line (POST /v1/sale-invoices/{id}/lines)'
-  description: 'Create new line in sale invoice. Rivile ERP: POST /v1/sale-invoices/{id}/lines.'
+  display_name: Advanced · Create sale invoice line
+  description: 'Create sale invoice line. Rivile ERP: POST /v1/sale-invoices/{id}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -22606,7 +22701,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -22957,7 +23052,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_invoices_id_post
-  display_name: 'Advanced · Sale invoices: Post sale invoice (PATCH /v1/sale-invoices/{id}/post)'
+  display_name: Advanced · Post sale invoice
   description: 'Post sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/post.'
   operation_kind: action
   category: finance
@@ -22975,7 +23070,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -23036,8 +23131,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_invoices_id_reserve
-  display_name: 'Advanced · Sale invoices: Reserve qty sale invoice (PATCH /v1/sale-invoices/{id}/reserve)'
-  description: 'Reserve qty sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/reserve.'
+  display_name: Advanced · Reserve quantities for sale invoice
+  description: 'Reserve quantities for sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/reserve.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -23054,7 +23149,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -23115,8 +23210,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_invoices_id_undo_cancellation
-  display_name: 'Advanced · Sale invoices: Undo cancellation sale invoice (PATCH /v1/sale-invoices/{id}/undo-cancellation)'
-  description: 'Undo cancellation sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/undo-cancellation.'
+  display_name: Advanced · Undo cancellation of sale invoice
+  description: 'Undo cancellation of sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/undo-cancellation.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -23133,7 +23228,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -23194,8 +23289,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_invoices_id_unpost
-  display_name: 'Advanced · Sale invoices: UnPost sale invoice (PATCH /v1/sale-invoices/{id}/unpost)'
-  description: 'UnPost sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unpost.'
+  display_name: Advanced · Unpost sale invoice
+  description: 'Unpost sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unpost.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -23212,7 +23307,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -23273,8 +23368,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_invoices_id_unreserve
-  display_name: 'Advanced · Sale invoices: UnReserve qty sale invoice (PATCH /v1/sale-invoices/{id}/unreserve)'
-  description: 'UnReserve qty sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unreserve.'
+  display_name: Advanced · Unreserve quantities for sale invoice
+  description: 'Unreserve quantities for sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unreserve.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -23291,7 +23386,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -23352,8 +23447,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_invoices_id_workflow_status
-  display_name: 'Advanced · Sale invoices: Update workflow status (PATCH /v1/sale-invoices/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/sale-invoices/{id}/workflow-status.'
+  display_name: Advanced · Update sale invoice workflow status
+  description: 'Update sale invoice workflow status. Rivile ERP: PATCH /v1/sale-invoices/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -23370,7 +23465,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -23448,11 +23543,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_sale_orders
-  display_name: 'Advanced · Sale orders: Sale orders list (GET /v1/sale-orders)'
-  description: 'Returns sale orders list. Fields available for filtering: id, createdAt, clientId, clientCode
-    journalId, journalCode, customerAgreementId, customerAgreementCode, isSent, opDate, docDate, documentNo,
-    docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode. Rivile ERP:
-    GET /v1/sale-orders.'
+  display_name: Advanced · List sale orders
+  description: 'List sale orders. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/sale-orders.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -23798,8 +23891,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_sale_orders
-  display_name: 'Advanced · Sale orders: Create sale order (POST /v1/sale-orders)'
-  description: 'Create new sale order. Rivile ERP: POST /v1/sale-orders.'
+  display_name: Advanced · Create sale order
+  description: 'Create sale order. Rivile ERP: POST /v1/sale-orders.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -24407,7 +24500,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: delete_sale_orders_id
-  display_name: 'Advanced · Sale orders: Delete sale order (DELETE /v1/sale-orders/{id})'
+  display_name: Advanced · Delete sale order
   description: 'Delete sale order. Rivile ERP: DELETE /v1/sale-orders/{id}.'
   operation_kind: action
   category: finance
@@ -24425,7 +24518,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -24486,8 +24579,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_sale_orders_id
-  display_name: 'Advanced · Sale orders: Get sale order (GET /v1/sale-orders/{id})'
-  description: 'Returns full sale order by id. Rivile ERP: GET /v1/sale-orders/{id}.'
+  display_name: Advanced · Get sale order
+  description: 'Get sale order. Rivile ERP: GET /v1/sale-orders/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -24503,7 +24596,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -24728,7 +24821,7 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: patch_sale_orders_id_approve
-  display_name: 'Advanced · Sale orders: Approve sale order (PATCH /v1/sale-orders/{id}/approve)'
+  display_name: Advanced · Approve sale order
   description: 'Approve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/approve.'
   operation_kind: action
   category: finance
@@ -24746,7 +24839,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -24807,8 +24900,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_orders_id_cancel_approve
-  display_name: 'Advanced · Sale orders: Cancel approve for sale order (PATCH /v1/sale-orders/{id}/cancel-approve)'
-  description: 'Cancel approve for sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/cancel-approve.'
+  display_name: Advanced · Cancel approval of sale order
+  description: 'Cancel approval of sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/cancel-approve.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -24825,7 +24918,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -24886,7 +24979,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_orders_id_convert_to_order
-  display_name: 'Advanced · Sale orders: Convert sale order to order (PATCH /v1/sale-orders/{id}/convertToOrder)'
+  display_name: Advanced · Convert sale order to order
   description: 'Convert sale order to order. Rivile ERP: PATCH /v1/sale-orders/{id}/convertToOrder.'
   operation_kind: action
   category: finance
@@ -24904,7 +24997,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -24965,7 +25058,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_orders_id_convert_to_proforma_invoice
-  display_name: 'Advanced · Sale orders: Convert sale order to proforma invoice (PATCH /v1/sale-orders/{id}/convertToProformaInvoice)'
+  display_name: Advanced · Convert sale order to proforma invoice
   description: 'Convert sale order to proforma invoice. Rivile ERP: PATCH /v1/sale-orders/{id}/convertToProformaInvoice.'
   operation_kind: action
   category: finance
@@ -24983,7 +25076,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -25044,7 +25137,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_orders_id_convert_to_quote
-  display_name: 'Advanced · Sale orders: Convert sale order to quote (PATCH /v1/sale-orders/{id}/convertToQuote)'
+  display_name: Advanced · Convert sale order to quote
   description: 'Convert sale order to quote. Rivile ERP: PATCH /v1/sale-orders/{id}/convertToQuote.'
   operation_kind: action
   category: finance
@@ -25062,7 +25155,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -25123,8 +25216,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: post_sale_orders_id_lines
-  display_name: 'Advanced · Sale orders: Create sale order line (POST /v1/sale-orders/{id}/lines)'
-  description: 'Create new sale order line. Rivile ERP: POST /v1/sale-orders/{id}/lines.'
+  display_name: Advanced · Create sale order line
+  description: 'Create sale order line. Rivile ERP: POST /v1/sale-orders/{id}/lines.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -25141,7 +25234,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -25492,7 +25585,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_orders_id_reserve
-  display_name: 'Advanced · Sale orders: Reserve sale order (PATCH /v1/sale-orders/{id}/reserve)'
+  display_name: Advanced · Reserve sale order
   description: 'Reserve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/reserve.'
   operation_kind: action
   category: finance
@@ -25510,7 +25603,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -25571,8 +25664,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_orders_id_unreserve
-  display_name: 'Advanced · Sale orders: Un-reserve sale order (PATCH /v1/sale-orders/{id}/unreserve)'
-  description: 'Un-reserve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/unreserve.'
+  display_name: Advanced · Unreserve sale order
+  description: 'Unreserve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/unreserve.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -25589,7 +25682,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -25650,8 +25743,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: patch_sale_orders_id_workflow_status
-  display_name: 'Advanced · Sale orders: Update workflow status (PATCH /v1/sale-orders/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/sale-orders/{id}/workflow-status.'
+  display_name: Advanced · Update sale order workflow status
+  description: 'Update sale order workflow status. Rivile ERP: PATCH /v1/sale-orders/{id}/workflow-status.'
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -25668,7 +25761,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -25746,10 +25839,9 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_sale_prices
-  display_name: 'Advanced · Sale prices: Sale Prices (GET /v1/sale-prices)'
-  description: 'Returns sale price list. Fields available for filtering: id, validFrom, validTo, productId,
-    productCode, departmentId, departmentCode, currencyId, currencyCode, priceCategoryId, priceCategoryCode,
-    updatedAt. Rivile ERP: GET /v1/sale-prices.'
+  display_name: Advanced · List sale prices
+  description: 'List sale prices. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/sale-prices.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -25990,8 +26082,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_sale_prices_id
-  display_name: 'Advanced · Sale prices: Get sale price (GET /v1/sale-prices/{id})'
-  description: 'Returns full sale price by id. Rivile ERP: GET /v1/sale-prices/{id}.'
+  display_name: Advanced · Get sale price
+  description: 'Get sale price. Rivile ERP: GET /v1/sale-prices/{id}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -26007,7 +26099,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -26108,8 +26200,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_health_status
-  display_name: 'Advanced · Service status:  (GET /health/status)'
-  description: '. Rivile ERP: GET /health/status.'
+  display_name: Advanced · Check the service status
+  description: 'Check the service status. Rivile ERP: GET /health/status.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -26165,8 +26257,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_users_api_keys
-  display_name: 'Advanced · Service status: Validate API key (GET /v1/users/api-keys)'
-  description: 'Check if call with API key is successful. Rivile ERP: GET /v1/users/api-keys.'
+  display_name: Advanced · Check the API key
+  description: 'Check the API key. Rivile ERP: GET /v1/users/api-keys.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -26222,9 +26314,9 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_timesheet_schedules
-  display_name: 'Advanced · Timesheet schedules: Timesheet schedules (GET /v1/timesheet-schedules)'
-  description: 'Returns timesheet schedule list. Fields available for filtering: id, active, code, createdAt,
-    updatedAt. Rivile ERP: GET /v1/timesheet-schedules.'
+  display_name: Advanced · List timesheet schedules
+  description: 'List timesheet schedules. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/timesheet-schedules.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -26431,7 +26523,7 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_timesheet_schedules
-  display_name: 'Advanced · Timesheet schedules: Fill timesheet schedule (POST /v1/timesheet-schedules)'
+  display_name: Advanced · Fill timesheet schedule
   description: 'Fill timesheet schedule. Rivile ERP: POST /v1/timesheet-schedules.'
   operation_kind: action
   category: finance
@@ -26540,8 +26632,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_timesheet_schedules_id_days
-  display_name: 'Advanced · Timesheet schedules: Timesheet schedules days list (GET /v1/timesheet-schedules/{id}/days)'
-  description: 'Returns Timesheet schedules days. Rivile ERP: GET /v1/timesheet-schedules/{id}/days.'
+  display_name: Advanced · List the days of a timesheet schedule
+  description: 'List the days of a timesheet schedule. Rivile ERP: GET /v1/timesheet-schedules/{id}/days.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -26557,7 +26649,7 @@ operations:
     schema:
       type: string
       title: Id
-      description: The record's id (a UUID, as returned in id).
+      description: The record's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -26568,7 +26660,7 @@ operations:
       type: string
       format: date
       title: Date from
-      description: dateFrom
+      description: The first day to read, YYYY-MM-DD.
       maxLength: 200
   - name: date_to
     value_type: text
@@ -26577,7 +26669,7 @@ operations:
       type: string
       format: date
       title: Date to
-      description: dateTo
+      description: The last day to read, YYYY-MM-DD.
       maxLength: 200
   outputs:
   - name: endpoint
@@ -26641,8 +26733,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_timesheets
-  display_name: 'Advanced · Timesheets: Timesheet list (GET /v1/timesheets)'
-  description: 'Returns timesheet list. Rivile ERP: GET /v1/timesheets.'
+  display_name: Advanced · List timesheets
+  description: 'List timesheets. Rivile ERP: GET /v1/timesheets.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -26658,7 +26750,7 @@ operations:
     schema:
       type: string
       title: Calendar period code
-      description: Calendar period code
+      description: The calendar period whose timesheets to read.
       maxLength: 200
   - name: employee_agreement_code
     value_type: text
@@ -26666,7 +26758,7 @@ operations:
     schema:
       type: string
       title: Employee agreement code
-      description: Employee agreement code
+      description: Only timesheets of this employment agreement.
       maxLength: 200
   - name: employee_code
     value_type: text
@@ -26674,7 +26766,7 @@ operations:
     schema:
       type: string
       title: Employee code
-      description: Employee code
+      description: Only timesheets of this employee.
       maxLength: 200
   - name: employee_position_code
     value_type: text
@@ -26682,7 +26774,7 @@ operations:
     schema:
       type: string
       title: Employee position code
-      description: Employee position code
+      description: Only timesheets of this position.
       maxLength: 200
   - name: department_code
     value_type: text
@@ -26690,7 +26782,7 @@ operations:
     schema:
       type: string
       title: Department code
-      description: Employee department code
+      description: Only timesheets of employees in this department.
       maxLength: 200
   outputs:
   - name: endpoint
@@ -26780,7 +26872,7 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: post_timesheets
-  display_name: 'Advanced · Timesheets: Create timesheet events (POST /v1/timesheets)'
+  display_name: Advanced · Create timesheet events
   description: 'Create timesheet events. Rivile ERP: POST /v1/timesheets.'
   operation_kind: action
   category: finance
@@ -26949,8 +27041,8 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: get_workflow_statuses_entity_type_id
-  display_name: 'Advanced · Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId})'
-  description: 'Returns Workflow statuses. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}.'
+  display_name: Advanced · List workflow statuses of a record type
+  description: 'List workflow statuses of a record type. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -26966,7 +27058,7 @@ operations:
     schema:
       type: string
       title: Entity type id
-      description: The record's id (a UUID, as returned in id).
+      description: The entity type's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -27041,8 +27133,8 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: get_workflow_statuses_entity_type_id_company_id
-  display_name: 'Advanced · Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId}/{companyId})'
-  description: 'Returns Workflow statuses. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}/{companyId}.'
+  display_name: Advanced · List workflow statuses of a record type for a company
+  description: 'List workflow statuses of a record type for a company. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}/{companyId}.'
   operation_kind: source
   category: finance
   connection_type_ids:
@@ -27058,7 +27150,7 @@ operations:
     schema:
       type: string
       title: Company id
-      description: The record's id (a UUID, as returned in id).
+      description: The company's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -27068,7 +27160,7 @@ operations:
     schema:
       type: string
       title: Entity type id
-      description: The record's id (a UUID, as returned in id).
+      description: The entity type's id (a UUID), as Rivile ERP returns it in its id field.
       minLength: 1
       maxLength: 64
       pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
@@ -27168,6 +27260,7 @@ operations:
       - PUT
       - DELETE
       title: HTTP method
+      description: The HTTP method of the endpoint, as in the API reference.
   - name: path
     value_type: text
     required: true
@@ -27195,7 +27288,7 @@ operations:
     required: false
     schema:
       title: Body
-      description: The JSON body, sent unchanged.
+      description: The JSON request body, sent unchanged.
   outputs:
   - name: endpoint
     value_type: text

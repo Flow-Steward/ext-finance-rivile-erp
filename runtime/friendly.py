@@ -23,16 +23,21 @@ from typing import Any
 
 from . import budget, errors
 from .errors import ExtensionError
+from .fields import field
 from .transport import DeadlineReached, encode_path
 
 MAX_TEXT = 150
-MAX_LINES = 1000
-#: Rivile creates a document with at most 100 lines; more are added one by one.
-LINES_PER_CREATE = 100
+#: Rivile creates a document with at most 100 lines in one request. More lines
+#: would need one request each, and those cannot be shown to fit the step's time
+#: limit (each may take up to Rivile's 5 minutes), so a step takes at most 100.
+MAX_LINES = 100
 MONEY = Decimal("0.01")
 PRICE = Decimal("0.0001")
 QUANTITY = Decimal("0.0001")
-MAX_AMOUNT = Decimal("999999999999")
+#: Bounds that keep every value exact as a JSON number: at most 12 significant
+#: digits, which a binary float holds and prints back unchanged.
+MAX_AMOUNT = Decimal("9999999999.99")
+MAX_QUANTITY = Decimal("99999999.9999")
 
 #: Lists that document updatedAt as a filter field (same table as the contract).
 CHANGE_LISTS: dict[str, str] = {
@@ -205,19 +210,6 @@ def _max_pages(inputs: Mapping[str, Any]) -> int:
 # Reading Rivile answers
 
 
-def field(record: Any, name: str) -> Any:
-    """A field of a Rivile ERP record, matched case-insensitively."""
-    if not isinstance(record, Mapping):
-        return None
-    if name in record:
-        return record[name]
-    lowered = name.lower()
-    for key, value in record.items():
-        if isinstance(key, str) and key.lower() == lowered:
-            return value
-    return None
-
-
 def text_of(record: Any, name: str) -> str:
     value = field(record, name)
     if isinstance(value, str):
@@ -266,6 +258,7 @@ class Api:
         *,
         max_pages: int = 1,
         size: int = 100,
+        first_page: int = 0,
         meter: budget.Meter | None = None,
     ) -> dict[str, Any]:
         from . import catalog, operations
@@ -276,7 +269,7 @@ class Api:
             path,
             [],
             filter_json=operations.build_filter(conditions or None, endpoint.filter_fields),
-            first_page=0,
+            first_page=first_page,
             size=size,
             max_pages=max_pages,
             meter=meter,
@@ -379,11 +372,7 @@ def client_body(
         "isCustomer": _bool(inputs, "is_customer", customer),
         "isSupplier": _bool(inputs, "is_supplier", supplier),
     }
-    for input_name, rivile_field in (
-        ("client_code", "code"),
-        ("reg_code", "regCode"),
-        ("vat_number", "vatNumber"),
-    ):
+    for input_name, rivile_field in (("reg_code", "regCode"), ("vat_number", "vatNumber")):
         value = code(inputs, input_name)
         if value:
             body[rivile_field] = value
@@ -427,6 +416,13 @@ def find_or_create_client(
     if not _client_identifiers(inputs):
         raise _invalid("Give client_code, reg_code or vat_number to look the client up")
     record, matched_by = _find_client(api, inputs)
+    client_code = code(inputs, "client_code")
+    if record is None and client_code:
+        # A code names an existing client: a typo must not create a second one.
+        raise _invalid(
+            f"No Rivile ERP client has client_code {client_code}; nothing was created. To "
+            "find or create a client, leave client_code empty and give reg_code or vat_number."
+        )
     if record is not None:
         return {
             "client_id": text_of(record, "id") or None,
@@ -438,11 +434,11 @@ def find_or_create_client(
     body = client_body(inputs, customer=customer, supplier=supplier, require_name=True)
     created = progress.guard("Creating the client", lambda: api.write("POST", "/v1/clients", body))
     created = created if isinstance(created, Mapping) else {}
-    client_code = text_of(created, "code") or body.get("code") or None
-    progress.add(f"client {client_code or text_of(created, 'id')} created")
+    new_code = text_of(created, "code") or None
+    progress.add(f"client {new_code or text_of(created, 'id')} created")
     return {
         "client_id": text_of(created, "id") or None,
-        "client_code": client_code,
+        "client_code": new_code,
         "created": True,
         "matched_by": None,
         "record": dict(created) or None,
@@ -479,7 +475,10 @@ def invoice_lines(inputs: Mapping[str, Any], department: str) -> list[dict[str, 
     if not isinstance(raw, list) or not raw:
         raise _invalid("lines must be a list with at least one line")
     if len(raw) > MAX_LINES:
-        raise _invalid(f"An invoice may have at most {MAX_LINES} lines in one step")
+        raise _invalid(
+            f"An invoice step takes at most {MAX_LINES} lines (Rivile's limit for one create "
+            "request); add further lines with the Advanced create-line step"
+        )
     lines = []
     for index, item in enumerate(raw):
         where = f"lines[{index}]"
@@ -488,7 +487,13 @@ def invoice_lines(inputs: Mapping[str, Any], department: str) -> list[dict[str, 
         line: dict[str, Any] = {
             "itemCode": code(item, "item_code", required=True),
             "qtyAlt": wire(
-                decimal_input(item.get("quantity"), f"{where}.quantity", QUANTITY, minimum=QUANTITY)
+                decimal_input(
+                    item.get("quantity"),
+                    f"{where}.quantity",
+                    QUANTITY,
+                    minimum=QUANTITY,
+                    maximum=MAX_QUANTITY,
+                )
             ),
             "departmentCode": code(item, "department_code") or department,
         }
@@ -497,7 +502,9 @@ def invoice_lines(inputs: Mapping[str, Any], department: str) -> list[dict[str, 
             line["uomAltCode"] = unit
         if item.get("price") is not None:
             line["price"] = wire(
-                decimal_input(item["price"], f"{where}.price", PRICE, minimum=Decimal(0))
+                decimal_input(
+                    item["price"], f"{where}.price", PRICE, minimum=Decimal(0), maximum=MAX_QUANTITY
+                )
             )
         if item.get("discount_percent") is not None:
             line["discountPerc"] = wire(
@@ -540,9 +547,16 @@ def invoice_header(inputs: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _invoice_result(
-    record: Any, *, created: bool, client: dict[str, Any], lines: int, posted: bool
+    record: Any,
+    *,
+    created: bool,
+    client: dict[str, Any],
+    lines: int,
+    posted: bool | None,
+    post_note: str | None = None,
 ) -> dict[str, Any]:
     record = dict(record) if isinstance(record, Mapping) else None
+    status = field(record, "statusId")
     return {
         "document_id": text_of(record, "id") or None,
         "number": text_of(record, "documentNo") or None,
@@ -552,13 +566,12 @@ def _invoice_result(
         "lines_created": lines,
         "total_amount": decimal_text(decimal_of(record, "totalAmount")),
         "total_tax": decimal_text(decimal_of(record, "totalTaxAmount")),
+        "total_with_tax": decimal_text(decimal_of(record, "totalAmountWithTax")),
+        "status_id": status if isinstance(status, int) and not isinstance(status, bool) else None,
         "posted": posted,
+        "post_note": post_note,
         "record": record,
     }
-
-
-def _sender(api: Api, path: str, body: dict[str, Any]) -> Callable[[], Any]:
-    return lambda: api.write("POST", path, body)
 
 
 def create_invoice(
@@ -591,10 +604,10 @@ def create_invoice(
             ),
         )
         if existing["records"]:
-            return _invoice_result(
-                existing["records"][0], created=False, client=client, lines=0, posted=False
+            return _existing_invoice(
+                api, existing["records"][0], path, noun, client, post=post, progress=progress
             )
-    body = {**header, "clientCode": client_code, "lines": lines[:LINES_PER_CREATE]}
+    body = {**header, "clientCode": client_code, "lines": lines}
     record = progress.guard(f"Creating the {noun}", lambda: api.write("POST", path, body))
     document_id = text_of(record, "id")
     if not document_id:
@@ -604,32 +617,54 @@ def create_invoice(
             ),
             f"Creating the {noun}",
         )
-    saved = min(len(lines), LINES_PER_CREATE)
     progress.add(
-        f"{noun} {text_of(record, 'documentNo') or document_id} created with lines 1–{saved}"
+        f"{noun} {text_of(record, 'documentNo') or document_id} created with {len(lines)} lines"
     )
-    lines_path = encode_path(path + "/{id}/lines", {"id": document_id})
-    for index in range(LINES_PER_CREATE, len(lines)):
-        progress.guard(f"Adding line {index + 1}", _sender(api, lines_path, lines[index]))
-        saved += 1
-        progress.done[-1] = (
-            f"{noun} {text_of(record, 'documentNo') or document_id} created with lines 1–{saved}"
-        )
     posted = False
     if post:
         post_path = encode_path(path + "/{id}/post", {"id": document_id})
         progress.guard(f"Posting the {noun}", lambda: api.write("PATCH", post_path, None))
         posted = True
         progress.add(f"{noun} posted")
-    if saved > LINES_PER_CREATE or posted:
-        # Totals change with added lines; a failed re-read keeps the create answer.
+        # Posting can change the document; a failed re-read keeps the create answer.
         try:
             fresh = api.get(encode_path(path + "/{id}", {"id": document_id}))
             if isinstance(fresh, Mapping):
                 record = fresh
         except (ExtensionError, DeadlineReached):
             pass
-    return _invoice_result(record, created=True, client=client, lines=saved, posted=posted)
+    return _invoice_result(record, created=True, client=client, lines=len(lines), posted=posted)
+
+
+def _existing_invoice(
+    api: Api,
+    record: Any,
+    path: str,
+    noun: str,
+    client: dict[str, Any],
+    *,
+    post: bool,
+    progress: Progress,
+) -> dict[str, Any]:
+    """An invoice with this number already exists: return it, and post it if asked.
+
+    Rivile does not document which statusId means "posted", so the state is not
+    guessed: ``posted`` is null unless this step posted it, and a refusal to post
+    (for example because it already is) is reported in ``post_note``.
+    """
+    document_id = text_of(record, "id")
+    if not post or not document_id:
+        return _invoice_result(record, created=False, client=client, lines=0, posted=None)
+    post_path = encode_path(path + "/{id}/post", {"id": document_id})
+    try:
+        progress.guard(f"Posting the existing {noun}", lambda: api.write("PATCH", post_path, None))
+    except ExtensionError as exc:
+        if exc.code != errors.UPSTREAM_VALIDATION_FAILED or progress.done:
+            raise
+        return _invoice_result(
+            record, created=False, client=client, lines=0, posted=None, post_note=exc.message
+        )
+    return _invoice_result(record, created=False, client=client, lines=0, posted=True)
 
 
 # ---------------------------------------------------------------------------
@@ -658,7 +693,9 @@ def payment_body(inputs: Mapping[str, Any]) -> tuple[dict[str, Any], str, int, b
         "typeId": 5 if direction == "received" else 4,
         "clientCode": code(inputs, "client_code", required=True),
         "amountCur": wire(
-            decimal_input(inputs.get("amount"), "amount", MONEY, minimum=Decimal("0.01"))
+            decimal_input(
+                inputs.get("amount"), "amount", MONEY, minimum=Decimal("0.01"), maximum=MAX_AMOUNT
+            )
         ),
     }
     for input_name, rivile_field in (
@@ -817,6 +854,12 @@ def _conditions(
     ]
 
 
+def _fit(read: dict[str, Any], build: Callable[[dict[str, Any]], dict[str, Any]]) -> dict[str, Any]:
+    from . import operations
+
+    return operations.fit_pages(read, build)
+
+
 def stock_levels(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
     _allowed(inputs, {"product_code", "department_code", "max_pages"})
     read = api.list(
@@ -827,28 +870,37 @@ def stock_levels(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
         max_pages=_max_pages(inputs),
         meter=budget.Meter(),
     )
-    items = []
-    total = Decimal(0)
-    for row in read["records"]:
-        available = decimal_of(row, "qtyAvailable")
-        total += available or Decimal(0)
-        items.append(
-            {
-                "product_code": text_of(row, "productCode"),
-                "department_code": text_of(row, "departmentCode"),
-                "unit": text_of(row, "uomCode"),
-                "available": decimal_text(available, QUANTITY),
-                "in_warehouse": decimal_text(decimal_of(row, "qtyWarehouse"), QUANTITY),
-                "reserved": decimal_text(decimal_of(row, "qtyReserved"), QUANTITY),
-                "lot_code": text_of(row, "lotCode") or None,
-            }
-        )
-    return {
-        "items": items,
-        "count": len(items),
-        "total_available": str(total.quantize(QUANTITY, rounding=ROUND_HALF_UP)),
-        "has_more": read["has_more"],
-    }
+
+    def build(done: dict[str, Any]) -> dict[str, Any]:
+        items = []
+        # Quantities only add up for the same product in the same unit.
+        totals: dict[tuple[str, str], Decimal] = {}
+        for row in done["records"]:
+            available = decimal_of(row, "qtyAvailable")
+            key = (text_of(row, "productCode"), text_of(row, "uomCode"))
+            totals[key] = totals.get(key, Decimal(0)) + (available or Decimal(0))
+            items.append(
+                {
+                    "product_code": key[0],
+                    "department_code": text_of(row, "departmentCode"),
+                    "unit": key[1],
+                    "available": decimal_text(available, QUANTITY),
+                    "in_warehouse": decimal_text(decimal_of(row, "qtyWarehouse"), QUANTITY),
+                    "reserved": decimal_text(decimal_of(row, "qtyReserved"), QUANTITY),
+                    "lot_code": text_of(row, "lotCode") or None,
+                }
+            )
+        return {
+            "items": items,
+            "count": len(items),
+            "totals": [
+                {"product_code": product, "unit": unit, "available": decimal_text(total, QUANTITY)}
+                for (product, unit), total in totals.items()
+            ],
+            "has_more": done["has_more"],
+        }
+
+    return _fit(read, build)
 
 
 def product_prices(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
@@ -868,20 +920,24 @@ def product_prices(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
         max_pages=5,
         meter=budget.Meter(),
     )
-    prices = [
-        {
-            "price_excluding_tax": decimal_text(decimal_of(row, "priceExcludingTax"), PRICE),
-            "price_including_tax": decimal_text(decimal_of(row, "priceIncludingTax"), PRICE),
-            "valid_from": text_of(row, "validFrom") or None,
-            "valid_to": text_of(row, "validTo") or None,
-            "currency": text_of(row, "currencyCode") or None,
-            "category": text_of(row, "priceCategoryCode") or None,
-            "unit": text_of(row, "productUnitOfMeasureCode") or None,
-            "department_code": text_of(row, "departmentCode") or None,
-        }
-        for row in read["records"]
-    ]
-    return {"prices": prices, "count": len(prices)}
+
+    def build(done: dict[str, Any]) -> dict[str, Any]:
+        prices = [
+            {
+                "price_excluding_tax": decimal_text(decimal_of(row, "priceExcludingTax"), PRICE),
+                "price_including_tax": decimal_text(decimal_of(row, "priceIncludingTax"), PRICE),
+                "valid_from": text_of(row, "validFrom") or None,
+                "valid_to": text_of(row, "validTo") or None,
+                "currency": text_of(row, "currencyCode") or None,
+                "category": text_of(row, "priceCategoryCode") or None,
+                "unit": text_of(row, "productUnitOfMeasureCode") or None,
+                "department_code": text_of(row, "departmentCode") or None,
+            }
+            for row in done["records"]
+        ]
+        return {"prices": prices, "count": len(prices), "has_more": done["has_more"]}
+
+    return _fit(read, build)
 
 
 def _since(inputs: Mapping[str, Any]) -> str:
@@ -895,8 +951,15 @@ def _since(inputs: Mapping[str, Any]) -> str:
     return since
 
 
+def _page(inputs: Mapping[str, Any]) -> int:
+    value = inputs.get("page", 0)
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 1000000:
+        raise _invalid("page must be a whole number from 0")
+    return value
+
+
 def changes_since(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
-    _allowed(inputs, {"entity", "since", "max_pages"})
+    _allowed(inputs, {"entity", "since", "page", "max_pages"})
     path = CHANGE_LISTS.get(_text(inputs, "entity", required=True, limit=40))
     if path is None:
         raise _invalid(f"entity must be one of: {', '.join(sorted(CHANGE_LISTS))}")
@@ -904,14 +967,19 @@ def changes_since(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
         path,
         [{"field": "updatedAt", "operation": "GREATER_THAN", "value": _since(inputs)}],
         max_pages=_max_pages(inputs),
+        first_page=_page(inputs),
         meter=budget.Meter(),
     )
-    return {
-        "records": read["records"],
-        "count": len(read["records"]),
-        "has_more": read["has_more"],
-        "next_page": read["next_page"],
-    }
+
+    def build(done: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "records": done["records"],
+            "count": len(done["records"]),
+            "has_more": done["has_more"],
+            "next_page": done["next_page"],
+        }
+
+    return _fit(read, build)
 
 
 def client_debt(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
@@ -923,35 +991,62 @@ def client_debt(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
         max_pages=_max_pages(inputs),
         meter=budget.Meter(),
     )
-    total = overdue = Decimal(0)
-    documents = []
-    for row in read["records"]:
-        due = decimal_of(row, "totalBaseDue") or Decimal(0)
-        days = field(row, "overDueDays")
-        late = isinstance(days, int) and not isinstance(days, bool) and days > 0
-        total += due
-        if late:
-            overdue += due
-        documents.append(
-            {
-                "document_no": text_of(row, "documentNo") or None,
-                "date": text_of(row, "date") or None,
-                "due_date": text_of(row, "dueDate") or None,
-                "due": decimal_text(due),
-                "overdue_days": days
-                if isinstance(days, int) and not isinstance(days, bool)
-                else None,
-                "currency": text_of(row, "currencyCode") or None,
-                "due_in_currency": decimal_text(decimal_of(row, "totalCurDue")),
-            }
-        )
-    return {
-        "total_due": decimal_text(total),
-        "overdue": decimal_text(overdue),
-        "documents": documents,
-        "count": len(documents),
-        "has_more": read["has_more"],
-    }
+
+    def build(done: dict[str, Any]) -> dict[str, Any]:
+        total = overdue = Decimal(0)
+        by_type: dict[tuple[int | None, str], dict[str, Any]] = {}
+        documents = []
+        for row in done["records"]:
+            due = decimal_of(row, "totalBaseDue") or Decimal(0)
+            days = field(row, "overDueDays")
+            days = days if isinstance(days, int) and not isinstance(days, bool) else None
+            type_id = field(row, "typeId")
+            type_id = (
+                type_id if isinstance(type_id, int) and not isinstance(type_id, bool) else None
+            )
+            group = by_type.setdefault(
+                (type_id, text_of(row, "typeName")),
+                {"due": Decimal(0), "overdue": Decimal(0), "count": 0},
+            )
+            group["due"] += due
+            group["count"] += 1
+            total += due
+            if days is not None and days > 0:
+                overdue += due
+                group["overdue"] += due
+            documents.append(
+                {
+                    "document_no": text_of(row, "documentNo") or None,
+                    "type_id": type_id,
+                    "type_name": text_of(row, "typeName") or None,
+                    "date": text_of(row, "date") or None,
+                    "due_date": text_of(row, "dueDate") or None,
+                    "due": decimal_text(due),
+                    "overdue_days": days,
+                    "currency": text_of(row, "currencyCode") or None,
+                    "due_in_currency": decimal_text(decimal_of(row, "totalCurDue")),
+                }
+            )
+        return {
+            "total_due": decimal_text(total),
+            "overdue": decimal_text(overdue),
+            "totals_by_type": [
+                {
+                    "type_id": type_id,
+                    "type_name": type_name or None,
+                    "total_due": decimal_text(group["due"]),
+                    "overdue": decimal_text(group["overdue"]),
+                    "count": group["count"],
+                }
+                for (type_id, type_name), group in by_type.items()
+            ],
+            "documents": documents,
+            "count": len(documents),
+            "complete": not done["has_more"],
+            "has_more": done["has_more"],
+        }
+
+    return _fit(read, build)
 
 
 def download_document_file(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
@@ -1085,8 +1180,9 @@ def validate(operation_id: str, inputs: Mapping[str, Any]) -> None:
         )
         code(inputs, "product_code", required=True)
     elif operation_id == "changes_since":
-        _allowed(inputs, {"entity", "since", "max_pages"})
+        _allowed(inputs, {"entity", "since", "page", "max_pages"})
         _since(inputs)
+        _page(inputs)
     elif operation_id == "client_debt":
         _allowed(inputs, {"client_code", "max_pages"})
         code(inputs, "client_code", required=True)
@@ -1111,7 +1207,10 @@ NEUTRAL_OUTPUTS: dict[str, dict[str, Any]] = {
         "lines_created": 0,
         "total_amount": None,
         "total_tax": None,
+        "total_with_tax": None,
+        "status_id": None,
         "posted": False,
+        "post_note": None,
         "record": None,
     },
     "register_payment": {"payment_id": None, "linked": False, "posted": False, "record": None},

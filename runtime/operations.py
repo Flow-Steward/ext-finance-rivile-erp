@@ -14,6 +14,7 @@ from flowsteward_extension_sdk import write_artifact_stream
 from . import budget, catalog, errors, friendly
 from .connection import Connection, connection_from_payload
 from .errors import ExtensionError, error_response
+from .fields import field
 from .models import Endpoint
 from .transport import DeadlineReached, Reply, RivileTransport, encode_path
 
@@ -61,7 +62,8 @@ _ALLOWED_ACTION_KEYS = frozenset(
 _UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
-_PATH_VALUE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+#: Non-UUID path values (none in the 0.1 document): no dots, so no "." or ".." segment.
+_PATH_VALUE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _CALL_PATH_RE = re.compile(r"^/v1/[A-Za-z0-9/_.-]{1,200}$")
 _DIGITS = re.compile(r"[0-9]{1,9}")
 _FIELD_RE = re.compile(r"^\w{1,64}$")
@@ -324,19 +326,22 @@ def build_filter(raw: Any, allowed: tuple[str, ...] | None) -> str:
     return json.dumps(conditions, ensure_ascii=False, separators=(",", ":"))
 
 
-def _path_value(name: str, value: Any) -> str:
+def path_value(name: str, value: Any, fmt: str = "uuid") -> str:
+    """A path id: a UUID when the document says so (every 0.1 path id), else a plain code."""
     text = (
         str(value).strip() if isinstance(value, (str, int)) and not isinstance(value, bool) else ""
     )
-    if not text or not (_UUID_RE.fullmatch(text) or _PATH_VALUE_RE.fullmatch(text)):
-        raise _invalid(f"{name} must be a Rivile ERP id")
+    pattern = _UUID_RE if fmt == "uuid" else _PATH_VALUE_RE
+    if not text or not pattern.fullmatch(text):
+        what = "a Rivile ERP id (UUID)" if fmt == "uuid" else "a Rivile ERP code"
+        raise _invalid(f"{name} must be {what}")
     return text
 
 
 def _allowed_inputs(endpoint: Endpoint) -> set[str]:
     names = {"connection_ref"}
-    names |= {name for name, _wire in endpoint.path_params}
-    names |= {name for name, _wire, _kind in endpoint.query_params}
+    names |= {name for name, _wire, _fmt in endpoint.path_params}
+    names |= {name for name, _wire, _kind, _required in endpoint.query_params}
     if endpoint.has_body:
         names.add("body")
     if endpoint.paged:
@@ -352,15 +357,17 @@ def endpoint_request(
     if unknown:
         raise _invalid(f"Unknown input: {', '.join(sorted(unknown))}")
     values: dict[str, str] = {}
-    for name, wire in endpoint.path_params:
+    for name, wire, fmt in endpoint.path_params:
         if operation_input.get(name) in (None, ""):
             raise _invalid(f"Required input missing: {name}")
-        values[wire] = _path_value(name, operation_input[name])
+        values[wire] = path_value(name, operation_input[name], fmt)
     path = encode_path(endpoint.path, values)
     query: list[tuple[str, str]] = []
-    for name, wire, _kind in endpoint.query_params:
-        if name in operation_input:
+    for name, wire, _kind, required in endpoint.query_params:
+        if name in operation_input and operation_input[name] != "":
             query.append((wire, _scalar_text(name, operation_input[name])))
+        elif required:
+            raise _invalid(f"Required input missing: {name}")
     body = operation_input.get("body")
     if endpoint.has_body:
         if body is None and endpoint.body_required:
@@ -527,10 +534,10 @@ def _page_of(data: Any) -> tuple[list[Any], int | None, int | None]:
             definitely_no_external_effect=True,
             external_effect_status="failed",
         )
-    content = data.get("content")
+    content = field(data, "content")
     content = content if isinstance(content, list) else []
-    total = data.get("totalElements")
-    pages = data.get("totalPages")
+    total = field(data, "totalElements")
+    pages = field(data, "totalPages")
     return (
         content,
         total if isinstance(total, int) and not isinstance(total, bool) else None,
@@ -557,6 +564,7 @@ def read_pages(
 ) -> dict[str, Any]:
     """Read pages until the last one, ``max_pages``, the output budget or the deadline."""
     records: list[Any] = []
+    page_sizes: list[int] = []
     page = first_page
     fetched = 0
     has_more = False
@@ -576,12 +584,15 @@ def read_pages(
             has_more = True  # out of time: continue from next_page
             break
         content, total, pages_total = _page_of(reply.data)
-        if meter is not None and not meter.admit(content):
+        # The first record is repeated as ``record`` in the result: meter it twice.
+        chunk = [content, content[0]] if fetched == 0 and content else content
+        if meter is not None and not meter.admit(chunk):
             if fetched == 0:
                 raise budget.too_large()
             has_more = True  # this page does not fit: stop before it
             break
         records.extend(content)
+        page_sizes.append(len(content))
         fetched += 1
         duration += took
         status = reply.status
@@ -600,7 +611,32 @@ def read_pages(
         "has_more": has_more,
         "http_status": status,
         "duration_ms": duration,
+        "page_sizes": page_sizes,
     }
+
+
+def fit_pages(
+    read: dict[str, Any], build: Callable[[dict[str, Any]], dict[str, Any]]
+) -> dict[str, Any]:
+    """The result built from ``read``, dropping whole trailing pages until it fits.
+
+    The meter keeps a margin, so this rarely drops anything; it makes sure a
+    multi-page read always ends at a page boundary with ``has_more`` and
+    ``next_page`` instead of failing after the pages were read.
+    """
+    while True:
+        result = build(read)
+        if budget.fits(result):
+            return result
+        sizes = read["page_sizes"]
+        if len(sizes) <= 1:
+            raise budget.too_large()
+        dropped = sizes.pop()
+        read["records"] = read["records"][: len(read["records"]) - dropped]
+        read["pages_fetched"] -= 1
+        read["page_number"] -= 1
+        read["next_page"] = read["page_number"] + 1
+        read["has_more"] = True
 
 
 def _run_paged(
@@ -618,7 +654,6 @@ def _run_paged(
     page = _whole("page", inputs.get("page"), default=0, minimum=0, maximum=1000000)
     size = _whole("size", inputs.get("size"), default=PAGE_SIZE, minimum=1, maximum=PAGE_SIZE)
     meter = budget.Meter()
-    meter.admit({"endpoint": endpoint.wire, "record": None, "count": 0, "next_page": 0})
     read = read_pages(
         context,
         path,
@@ -629,16 +664,18 @@ def _run_paged(
         max_pages=max_pages if fetch_all else 1,
         meter=meter,
     )
-    records = read["records"]
-    result = {
-        "endpoint": endpoint.wire,
-        "records": records,
-        "record": records[0] if records else None,
-        "count": len(records),
-        **{k: v for k, v in read.items() if k != "records"},
-    }
-    budget.ensure_fits(result)
-    return result
+
+    def build(done: dict[str, Any]) -> dict[str, Any]:
+        records = done["records"]
+        return {
+            "endpoint": endpoint.wire,
+            "records": records,
+            "record": records[0] if records else None,
+            "count": len(records),
+            **{k: v for k, v in done.items() if k not in {"records", "page_sizes"}},
+        }
+
+    return fit_pages(read, build)
 
 
 def _call_request(
@@ -651,7 +688,8 @@ def _call_request(
     if method not in CALL_METHODS:
         raise _invalid("method must be GET, POST, PATCH, PUT or DELETE")
     path = _text(operation_input.get("path"))
-    if not _CALL_PATH_RE.fullmatch(path) or ".." in path or "//" in path:
+    segments = path.split("/")[1:]
+    if not _CALL_PATH_RE.fullmatch(path) or any(s in {"", ".", ".."} for s in segments):
         raise _invalid("path must be a Rivile ERP path under /v1, for example /v1/clients")
     raw_query = operation_input.get("query") or {}
     if not isinstance(raw_query, Mapping) or len(raw_query) > 30:
@@ -798,7 +836,7 @@ def download_file(
     context: _Context, file_id: str, *, binding_key: str
 ) -> tuple[str, int, str, int, int]:
     """(artifact handle, size, Rivile content type, HTTP status, duration ms) of one file."""
-    path = encode_path(catalog.FILE_CONTENT_PATH, {"id": _path_value("file_id", file_id)})
+    path = encode_path(catalog.FILE_CONTENT_PATH, {"id": path_value("file_id", file_id)})
     reply, duration = context.call("GET", path, mutating=False, binary=True)
     body = reply.data
     if not isinstance(body, (bytes, bytearray)):

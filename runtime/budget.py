@@ -47,13 +47,13 @@ def measure(value: Any) -> tuple[int, int, int, int]:
     return candidates, nodes, codepoints, size
 
 
-def _within(totals: tuple[int, int, int, int]) -> bool:
+def _within(totals: tuple[int, int, int, int], scale: float = 1.0) -> bool:
     candidates, nodes, codepoints, size = totals
     return (
-        candidates <= MAX_CANDIDATE_STRINGS
-        and nodes <= MAX_NODES
-        and codepoints <= MAX_CODEPOINTS
-        and size <= MAX_SERIALIZED_BYTES
+        candidates <= MAX_CANDIDATE_STRINGS * scale
+        and nodes <= MAX_NODES * scale
+        and codepoints <= MAX_CODEPOINTS * scale
+        and size <= MAX_SERIALIZED_BYTES * scale
     )
 
 
@@ -77,10 +77,15 @@ def ensure_fits(result: Any) -> None:
 
 
 class Meter:
-    """Running totals for a result assembled page by page."""
+    """Running totals for a result assembled page by page.
 
-    def __init__(self) -> None:
+    ``scale`` keeps a margin below the final limits for the keys and copies the
+    finished result adds around the metered pages.
+    """
+
+    def __init__(self, scale: float = 0.85) -> None:
         self.totals = (0, 0, 0, 0)
+        self.scale = scale
 
     def admit(self, chunk: Any) -> bool:
         """Add ``chunk`` if the running result still fits; report whether it did."""
@@ -91,7 +96,7 @@ class Meter:
             self.totals[2] + added[2],
             self.totals[3] + added[3],
         )
-        if not _within(combined):
+        if not _within(combined, self.scale):
             return False
         self.totals = combined
         return True

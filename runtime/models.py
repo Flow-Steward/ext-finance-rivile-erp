@@ -24,8 +24,8 @@ class Endpoint:
     has_body: bool
     body_required: bool
     binary: bool
-    path_params: tuple[tuple[str, str], ...]
-    query_params: tuple[tuple[str, str, str], ...]
+    path_params: tuple[tuple[str, str, str], ...]
+    query_params: tuple[tuple[str, str, str, bool], ...]
     filter_fields: tuple[str, ...]
     #: Where the answer goes: ``list`` (records of a page), ``file`` (a workflow
     #: file), ``record`` (an object), ``records`` (an array) or ``value`` (a scalar).

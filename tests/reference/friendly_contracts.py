@@ -104,49 +104,63 @@ def out(name: str, value_type: str, schema_type: Any, description: str = "") -> 
 
 DATE: dict[str, Any] = {"pattern": r"^\d{4}-\d{2}-\d{2}$", "maxLength": 10}
 
+#: Words shown for coded select values (the form shows the label, the step gets the value).
+OPTION_LABELS: dict[str, dict[Any, str]] = {
+    "client_type": {0: "Legal entity", 1: "Individual"},
+    "product_type": {1: "Product", 2: "Service"},
+    "direction": {"received": "Payment received", "sent": "Payment sent"},
+    "invoice_type": {"sale_invoice": "Sales invoice", "purchase_invoice": "Purchase invoice"},
+    "entity": {key: key.replace("_", " ").capitalize() for key in CHANGE_LISTS},
+    "document_type": {key: key.replace("_", " ").capitalize() for key in DOCUMENT_TYPES},
+}
+
 CLIENT_LOOKUP = [
     code(
         "client_code",
         "Client code",
-        "Rivile ERP client code (code), looked up first; used as the new code when creating "
-        "(else Rivile numbers it). Several matches, or a match whose registration or VAT code "
-        "differs from the ones given, is an error and nothing is created.",
+        "The code of an existing client in Rivile ERP. When given, that client must exist: the "
+        "step never creates a client for a code, so a typo cannot add a second client.",
     ),
-    code("reg_code", "Registration code", "Company registration code (regCode), looked up second."),
+    code(
+        "reg_code",
+        "Registration code",
+        "The company registration code, used to find the client, or to create it when no client "
+        "has this code.",
+    ),
     code(
         "vat_number",
         "VAT number",
-        "VAT payer code, e.g. LT100001234567 (vatNumber), looked up last.",
+        "The VAT payer code, for example LT100001234567, used like the registration code.",
     ),
 ]
 CLIENT_NEW = [
-    text("name", "Name", "Client name, needed when the client has to be created (name)."),
+    text("name", "Name", "The client's name, needed when the client has to be created."),
     choice(
         "client_type",
         "Client type",
-        "0 — legal entity (JURIDICAL, default), 1 — individual (INDIVIDUAL); typeId.",
+        "Whether a new client is a company or a person. Default: legal entity.",
         [0, 1],
     ),
-    text("address", "Address", "address."),
-    text("email", "E-mail", "email."),
-    text("phone", "Phone", "phone."),
+    text("address", "Address", "The address saved on a new client."),
+    text("email", "E-mail", "The e-mail address saved on a new client."),
+    text("phone", "Phone", "The phone number saved on a new client."),
     flag(
         "is_customer",
         "Customer",
-        "Mark the new client as a customer (isCustomer). Default true for sales.",
+        "Mark a new client as a customer. Default: yes for sales invoices.",
     ),
     flag(
         "is_supplier",
         "Supplier",
-        "Mark the new client as a supplier (isSupplier). Default true for purchases.",
+        "Mark a new client as a supplier. Default: yes for purchase invoices.",
     ),
 ]
 CLIENT_OUTPUTS = [
     out("client_id", "text", ["string", "null"], "The client's id (UUID)."),
-    out("client_code", "text", ["string", "null"]),
+    out("client_code", "text", ["string", "null"], "The client's code in Rivile ERP."),
     out("created", "boolean", "boolean", "True when this step created the client."),
     out("matched_by", "text", ["string", "null"], "client_code, reg_code or vat_number."),
-    out("record", "object", ["object", "null"]),
+    out("record", "object", ["object", "null"], "The client as Rivile ERP returned it."),
 ]
 
 LINE_ITEM = {
@@ -154,31 +168,24 @@ LINE_ITEM = {
     "additionalProperties": False,
     "required": ["item_code", "quantity"],
     "properties": {
-        "item_code": {
-            "type": "string",
-            "maxLength": 50,
-            "description": "Product or service code (itemCode).",
-        },
+        "item_code": {"type": "string", "maxLength": 50, "description": "Product or service code."},
         "unit": {
             "type": "string",
             "maxLength": 20,
-            "description": "Unit of measure code, e.g. VNT (uomAltCode). Default: the product's.",
+            "description": "Unit of measure code, for example VNT. Default: the product's unit.",
         },
-        "quantity": {
-            "type": ["number", "string"],
-            "description": "Quantity in that unit (qtyAlt).",
-        },
+        "quantity": {"type": ["number", "string"], "description": "Quantity in that unit."},
         "price": {
             "type": ["number", "string"],
-            "description": "Unit price (price). Default: Rivile's price list.",
+            "description": "Unit price. Default: the price from Rivile's price list.",
         },
-        "discount_percent": {"type": ["number", "string"], "description": "discountPerc."},
+        "discount_percent": {"type": ["number", "string"], "description": "Discount in percent."},
         "department_code": {
             "type": "string",
             "maxLength": 50,
-            "description": "Department (warehouse) code for this line; default: the document's.",
+            "description": "Department (warehouse) for this line. Default: the invoice's.",
         },
-        "notes": {"type": "string", "maxLength": 500},
+        "notes": {"type": "string", "maxLength": 500, "description": "A note on the line."},
     },
 }
 
@@ -194,28 +201,31 @@ def invoice(kind: str) -> dict[str, Any]:
         text(
             "number",
             "Number",
-            "Document number (documentNo). With a number the step first looks for a "
-            f"{noun} with this number for this client and returns it instead of creating a "
-            "second one. Without it Rivile numbers the document.",
+            f"The document number. With a number the step first looks for a {noun} with this "
+            "number for this client and returns it instead of creating a second one. Without it "
+            "Rivile numbers the document.",
             maxLength=50,
         ),
+        text("date", "Date", "The operation date, YYYY-MM-DD. Default: today.", **DATE),
         text(
-            "date", "Date", "Operation date YYYY-MM-DD (opDate). Default: Rivile's (today).", **DATE
+            "document_date",
+            "Document date",
+            "The date printed on the document, YYYY-MM-DD. Default: the operation date.",
+            **DATE,
         ),
-        text("document_date", "Document date", "docDate, YYYY-MM-DD. Default: date.", **DATE),
         code(
             "department_code",
             "Department",
-            "Department (warehouse) code for every line (departmentCode).",
+            "The department (warehouse) code used for every line that does not name its own.",
             required=True,
         ),
         code(
             "currency_code",
             "Currency",
-            "Currency code, e.g. EUR (currencyCode). Default: the base currency.",
+            "The currency code, for example EUR. Default: the company's base currency.",
         ),
-        flag("prices_include_tax", "Prices include VAT", "isTaxIncluded."),
-        text("notes", "Notes", "notes.", maxLength=1000),
+        flag("prices_include_tax", "Prices include VAT", "Whether the line prices include VAT."),
+        text("notes", "Notes", "A note printed on the document.", maxLength=1000),
         {
             "name": "lines",
             "value_type": "array",
@@ -223,38 +233,62 @@ def invoice(kind: str) -> dict[str, Any]:
             "schema": {
                 "type": "array",
                 "minItems": 1,
-                "maxItems": 1000,
+                "maxItems": 100,
                 "items": LINE_ITEM,
                 "title": "Lines",
                 "description": (
-                    "Invoice lines. Rivile takes up to 100 lines when a document is created; "
-                    "further lines are added one by one (POST …/lines)."
+                    "The invoice lines, 1 to 100 — Rivile's limit for creating a document in one "
+                    "request. For more, add lines afterwards with the Advanced create-line step."
                 ),
             },
         },
-        flag("post", "Post", f"Post the {noun} after it is created (PATCH …/post)."),
+        flag("post", "Post", f"Post the {noun} once it is created."),
     ]
     outputs = [
         out("document_id", "text", ["string", "null"], "The document's id (UUID)."),
-        out("number", "text", ["string", "null"], "documentNo."),
+        out("number", "text", ["string", "null"], "The document number."),
         out("created", "boolean", "boolean", "False when an existing document was returned."),
-        out("client_code", "text", ["string", "null"]),
-        out("client_created", "boolean", "boolean"),
+        out("client_code", "text", ["string", "null"], "The client's code."),
+        out("client_created", "boolean", "boolean", "True when this step created the client."),
         out("lines_created", "integer", "integer", "Lines saved by this step."),
-        out("total_amount", "text", ["string", "null"], "totalAmount, as an exact decimal."),
-        out("total_tax", "text", ["string", "null"], "totalTaxAmount."),
-        out("posted", "boolean", "boolean"),
-        out("record", "object", ["object", "null"]),
+        out("total_amount", "text", ["string", "null"], "Rivile's totalAmount, exact decimal."),
+        out("total_tax", "text", ["string", "null"], "Rivile's totalTaxAmount, exact decimal."),
+        out(
+            "total_with_tax",
+            "text",
+            ["string", "null"],
+            "Rivile's totalAmountWithTax, exact decimal.",
+        ),
+        out(
+            "status_id",
+            "integer",
+            ["integer", "null"],
+            "Rivile's statusId of the document, as returned (its values are not documented).",
+        ),
+        out(
+            "posted",
+            "boolean",
+            ["boolean", "null"],
+            "True when this step posted the document; null when an existing document was "
+            "returned and not posted by this step.",
+        ),
+        out(
+            "post_note",
+            "text",
+            ["string", "null"],
+            "Why Rivile refused to post an existing document, for example because it already is.",
+        ),
+        out("record", "object", ["object", "null"], "The document as Rivile ERP returned it."),
     ]
     return {
         "operation_id": f"create_{kind}_invoice",
         "display_name": f"Create {noun}",
         "kind": "action",
         "description": (
-            f"Creates a {noun} with its lines (POST {path}), finding or creating the client first "
-            "when no client code is given; lines beyond the first 100 are added one by one, and "
-            "it can post the document. If a later call fails, the step says exactly what was "
-            "already created and is not retried."
+            f"Creates a {noun} with up to 100 lines in one request (POST {path}), after finding "
+            "the client by code — or finding or creating it by registration or VAT code — and "
+            "can post it. If a later call fails, the step says exactly what was already created "
+            "and is not retried."
         ),
         "inputs": inputs,
         "outputs": outputs,
@@ -271,7 +305,7 @@ def operations() -> list[dict[str, Any]]:
             "minimum": 1,
             "maximum": 100,
             "title": "Max pages",
-            "description": "Pages of 100 records to read. Default 10.",
+            "description": "How many pages of 100 records to read at most. Default 10.",
         },
     }
     return [
@@ -280,10 +314,10 @@ def operations() -> list[dict[str, Any]]:
             "display_name": "Find or create customer / supplier",
             "kind": "action",
             "description": (
-                "Looks the client up by client code, then registration code, then VAT number "
-                "(GET /v1/clients); several matches or conflicting codes are an error. Creates "
-                "it (POST /v1/clients) only when none matches, so running it again is safe — "
-                "but not two runs at the same time."
+                "Finds the client by code, which must exist, or finds it by registration code "
+                "or VAT number and creates it when none matches (GET and POST /v1/clients). "
+                "Several matches or conflicting codes are an error and nothing is created. "
+                "Running it again is safe — but not two runs at the same time."
             ),
             "inputs": [CONNECTION, *CLIENT_LOOKUP, *CLIENT_NEW],
             "outputs": CLIENT_OUTPUTS,
@@ -304,33 +338,36 @@ def operations() -> list[dict[str, Any]]:
                 text(
                     "file_id",
                     "File id",
-                    "The attachment id (attachments[].id).",
+                    "The attachment's id, as listed in a document's attachments.",
                     pattern=UUID_PATTERN,
                     maxLength=36,
                 ),
                 choice(
                     "document_type",
                     "Document type",
-                    "Where the attachment is.",
+                    "The kind of record the file is attached to.",
                     sorted(DOCUMENT_TYPES),
                 ),
                 text(
                     "document_id",
                     "Document id",
-                    "The document's id (UUID).",
+                    "The id (UUID) of the record the file is attached to.",
                     pattern=UUID_PATTERN,
                     maxLength=36,
                 ),
                 text(
-                    "file_name", "File name", "Pick the attachment with this name.", maxLength=255
+                    "file_name",
+                    "File name",
+                    "Take the attachment with this name. Default: the first attachment.",
+                    maxLength=255,
                 ),
             ],
             "outputs": [
-                out("found", "boolean", "boolean"),
+                out("found", "boolean", "boolean", "False when the record has no attached file."),
                 out("document_file", "artifact_handle", None),
-                out("file_id", "text", ["string", "null"]),
+                out("file_id", "text", ["string", "null"], "The attachment's id."),
                 out("original_filename", "text", ["string", "null"], "The name in Rivile ERP."),
-                out("size_bytes", "integer", ["integer", "null"]),
+                out("size_bytes", "integer", ["integer", "null"], "The file size in bytes."),
             ],
         },
         {
@@ -346,11 +383,16 @@ def operations() -> list[dict[str, Any]]:
                 choice(
                     "direction",
                     "Direction",
-                    "received (typeId 5) or sent (typeId 4).",
+                    "Whether the money was received from the client or sent to them.",
                     ["received", "sent"],
                     required=True,
                 ),
-                code("client_code", "Client code", "clientCode.", required=True),
+                code(
+                    "client_code",
+                    "Client code",
+                    "The code of the client who paid or is paid.",
+                    required=True,
+                ),
                 {
                     "name": "amount",
                     "value_type": "text",
@@ -358,37 +400,37 @@ def operations() -> list[dict[str, Any]]:
                     "schema": {
                         "type": ["string", "number"],
                         "title": "Amount",
-                        "description": "Amount in the payment currency (amountCur), e.g. 121.00.",
+                        "description": "The amount in the payment currency, for example 121.00.",
                     },
                 },
-                code("currency_code", "Currency", "currencyCode. Default: the base currency."),
-                text("date", "Date", "opDate, YYYY-MM-DD. Default: today.", **DATE),
-                code(
-                    "account_code", "Money account", "The bank or cash account code (accountCode)."
-                ),
-                code("payment_method_code", "Payment method", "paymentMethodCode."),
-                text("document_no", "Number", "documentNo.", maxLength=50),
-                text("purpose", "Purpose", "purposeText.", maxLength=500),
+                code("currency_code", "Currency", "The currency code. Default: the base currency."),
+                text("date", "Date", "The payment date, YYYY-MM-DD. Default: today.", **DATE),
+                code("account_code", "Money account", "The bank or cash account code."),
+                code("payment_method_code", "Payment method", "The payment method code."),
+                text("document_no", "Number", "The payment document number.", maxLength=50),
+                text("purpose", "Purpose", "The payment purpose text.", maxLength=500),
                 text(
                     "invoice_id",
                     "Invoice id",
-                    "Link the payment to this invoice (UUID).",
+                    "Link the payment to the invoice with this id (UUID).",
                     pattern=UUID_PATTERN,
                     maxLength=36,
                 ),
                 choice(
                     "invoice_type",
                     "Invoice type",
-                    "sale_invoice (default for received) or purchase_invoice.",
+                    "The kind of invoice to link. Default: sales invoice for money received.",
                     ["sale_invoice", "purchase_invoice"],
                 ),
-                flag("post", "Post", "Post the payment (PATCH /v1/payments/{id}/post)."),
+                flag("post", "Post", "Post the payment once it is created."),
             ],
             "outputs": [
-                out("payment_id", "text", ["string", "null"]),
-                out("linked", "boolean", "boolean"),
-                out("posted", "boolean", "boolean"),
-                out("record", "object", ["object", "null"]),
+                out("payment_id", "text", ["string", "null"], "The payment's id (UUID)."),
+                out("linked", "boolean", "boolean", "True when linked to the invoice."),
+                out("posted", "boolean", "boolean", "True when this step posted the payment."),
+                out(
+                    "record", "object", ["object", "null"], "The payment as Rivile ERP returned it."
+                ),
             ],
         },
         {
@@ -401,24 +443,37 @@ def operations() -> list[dict[str, Any]]:
             ),
             "inputs": [
                 CONNECTION,
-                code("product_code", "Product code", "code; used as the new code when creating."),
-                code("barcode", "Barcode", "mainBarcode."),
-                text("name", "Name", "Needed when the product has to be created."),
+                code(
+                    "product_code",
+                    "Product code",
+                    "The product code, looked up first and used as the code of a new product.",
+                ),
+                code("barcode", "Barcode", "The main barcode, looked up second."),
+                text("name", "Name", "The product name, needed when it has to be created."),
                 choice(
                     "product_type",
                     "Product type",
-                    "1 — product (default), 2 — service; productTypeId.",
+                    "Whether a new product is a stocked product or a service. Default: product.",
                     [1, 2],
                 ),
-                code("unit", "Unit", "Unit of measure code for a new product, e.g. VNT (uomCode)."),
-                text("description", "Description", "description.", maxLength=1000),
+                code(
+                    "unit", "Unit", "The unit of measure code for a new product, for example VNT."
+                ),
+                text(
+                    "description",
+                    "Description",
+                    "A description saved on a new product.",
+                    maxLength=1000,
+                ),
             ],
             "outputs": [
-                out("product_id", "text", ["string", "null"]),
-                out("product_code", "text", ["string", "null"]),
-                out("created", "boolean", "boolean"),
-                out("matched_by", "text", ["string", "null"]),
-                out("record", "object", ["object", "null"]),
+                out("product_id", "text", ["string", "null"], "The product's id (UUID)."),
+                out("product_code", "text", ["string", "null"], "The product's code."),
+                out("created", "boolean", "boolean", "True when this step created the product."),
+                out("matched_by", "text", ["string", "null"], "product_code or barcode."),
+                out(
+                    "record", "object", ["object", "null"], "The product as Rivile ERP returned it."
+                ),
             ],
         },
         {
@@ -428,8 +483,8 @@ def operations() -> list[dict[str, Any]]:
             "description": "Quantities on hand per product and department (GET /v1/inventory-stocks).",
             "inputs": [
                 CONNECTION,
-                code("product_code", "Product code", "productCode."),
-                code("department_code", "Department", "departmentCode (warehouse)."),
+                code("product_code", "Product code", "Only this product. Default: all products."),
+                code("department_code", "Department", "Only this department (warehouse)."),
                 paging,
             ],
             "outputs": [
@@ -437,13 +492,16 @@ def operations() -> list[dict[str, Any]]:
                     "items",
                     "array",
                     "array",
-                    "productCode, departmentCode, uomCode, available, in_warehouse, reserved.",
+                    "One row per product, department and lot: available, in warehouse, reserved.",
                 ),
-                out("count", "integer", "integer"),
+                out("count", "integer", "integer", "Rows returned."),
                 out(
-                    "total_available", "text", "string", "Sum of qtyAvailable, as an exact decimal."
+                    "totals",
+                    "array",
+                    "array",
+                    "Available quantity summed per product and unit, as exact decimals.",
                 ),
-                out("has_more", "boolean", "boolean"),
+                out("has_more", "boolean", "boolean", "True when there are more rows to read."),
             ],
         },
         {
@@ -453,19 +511,27 @@ def operations() -> list[dict[str, Any]]:
             "description": "Sale prices of a product (GET /v1/sale-prices).",
             "inputs": [
                 CONNECTION,
-                code("product_code", "Product code", "productCode.", required=True),
-                code("price_category_code", "Price category", "priceCategoryCode."),
-                code("currency_code", "Currency", "currencyCode."),
-                code("department_code", "Department", "departmentCode."),
+                code(
+                    "product_code",
+                    "Product code",
+                    "The product whose prices to read.",
+                    required=True,
+                ),
+                code(
+                    "price_category_code", "Price category", "Only prices of this price category."
+                ),
+                code("currency_code", "Currency", "Only prices in this currency."),
+                code("department_code", "Department", "Only prices of this department."),
             ],
             "outputs": [
                 out(
                     "prices",
                     "array",
                     "array",
-                    "price_excluding_tax, price_including_tax, valid_from, valid_to, currency, category, unit.",
+                    "Prices with and without VAT, validity dates, currency, category and unit.",
                 ),
-                out("count", "integer", "integer"),
+                out("count", "integer", "integer", "Prices returned."),
+                out("has_more", "boolean", "boolean", "True when there are more prices to read."),
             ],
         },
         {
@@ -478,22 +544,42 @@ def operations() -> list[dict[str, Any]]:
             ),
             "inputs": [
                 CONNECTION,
-                choice("entity", "What", "The list to read.", sorted(CHANGE_LISTS), required=True),
+                choice(
+                    "entity",
+                    "What",
+                    "The kind of records to read.",
+                    sorted(CHANGE_LISTS),
+                    required=True,
+                ),
                 text(
                     "since",
                     "Since",
-                    "YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS(.SSS)Z.",
+                    "Read records changed after this moment: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.SSSZ.",
                     required=True,
                     maxLength=30,
                     pattern=r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$",
                 ),
+                {
+                    "name": "page",
+                    "value_type": "integer",
+                    "required": False,
+                    "schema": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000,
+                        "title": "Page",
+                        "description": "The page to start from, counted from 0; pass next_page to continue.",
+                    },
+                },
                 paging,
             ],
             "outputs": [
-                out("records", "array", "array"),
-                out("count", "integer", "integer"),
-                out("has_more", "boolean", "boolean"),
-                out("next_page", "integer", ["integer", "null"]),
+                out(
+                    "records", "array", "array", "The changed records, as Rivile ERP returned them."
+                ),
+                out("count", "integer", "integer", "Records returned."),
+                out("has_more", "boolean", "boolean", "True when there are more records to read."),
+                out("next_page", "integer", ["integer", "null"], "The page to continue from."),
             ],
         },
         {
@@ -502,11 +588,17 @@ def operations() -> list[dict[str, Any]]:
             "kind": "source",
             "description": (
                 "Open amounts of one client from the receivables and payables registry "
-                "(GET /v1/pr-registries, totalBaseDue), with the overdue part."
+                "(GET /v1/pr-registries, totalBaseDue), totalled per registry type, with the "
+                "overdue part."
             ),
             "inputs": [
                 CONNECTION,
-                code("client_code", "Client code", "clientCode.", required=True),
+                code(
+                    "client_code",
+                    "Client code",
+                    "The client whose open amounts to read.",
+                    required=True,
+                ),
                 paging,
             ],
             "outputs": [
@@ -514,22 +606,25 @@ def operations() -> list[dict[str, Any]]:
                     "total_due",
                     "text",
                     "string",
-                    "Sum of totalBaseDue (base currency), exact decimal.",
+                    "The sum of totalBaseDue over every row read, in the base currency. It adds "
+                    "up all registry types; see totals_by_type. Partial when complete is false.",
                 ),
-                out("overdue", "text", "string", "Sum of totalBaseDue where overDueDays > 0."),
+                out("overdue", "text", "string", "The part of total_due with overDueDays above 0."),
+                out(
+                    "totals_by_type",
+                    "array",
+                    "array",
+                    "total_due, overdue and count per Rivile registry type (typeId, typeName).",
+                ),
                 out(
                     "documents",
                     "array",
                     "array",
-                    "document_no, date, due_date, due, overdue_days, currency, due_in_currency.",
+                    "Each open document: number, type, dates, amount due and days overdue.",
                 ),
-                out("count", "integer", "integer"),
-                out(
-                    "has_more",
-                    "boolean",
-                    "boolean",
-                    "True when there were more records than were read.",
-                ),
+                out("count", "integer", "integer", "Documents returned."),
+                out("complete", "boolean", "boolean", "False when more rows exist than were read."),
+                out("has_more", "boolean", "boolean", "True when there are more rows to read."),
             ],
         },
     ]

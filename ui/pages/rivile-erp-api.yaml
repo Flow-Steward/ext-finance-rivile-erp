@@ -22,7 +22,7 @@ components:
 
     ### Find or create customer / supplier
 
-    Looks the client up by client code, then registration code, then VAT number (GET /v1/clients); several matches or conflicting codes are an error. Creates it (POST /v1/clients) only when none matches, so running it again is safe — but not two runs at the same time.
+    Finds the client by code, which must exist, or finds it by registration code or VAT number and creates it when none matches (GET and POST /v1/clients). Several matches or conflicting codes are an error and nothing is created. Running it again is safe — but not two runs at the same time.
 
     - Action id: `find_or_create_client`
     - Kind: write
@@ -32,23 +32,23 @@ components:
 
     ### Create sales invoice
 
-    Creates a sales invoice with its lines (POST /v1/sale-invoices), finding or creating the client first when no client code is given; lines beyond the first 100 are added one by one, and it can post the document. If a later call fails, the step says exactly what was already created and is not retried.
+    Creates a sales invoice with up to 100 lines in one request (POST /v1/sale-invoices), after finding the client by code — or finding or creating it by registration or VAT code — and can post it. If a later call fails, the step says exactly what was already created and is not retried.
 
     - Action id: `create_sales_invoice`
     - Kind: write
-    - Rivile ERP calls: `GET /v1/clients`, `POST /v1/clients`, `GET /v1/sale-invoices`, `POST /v1/sale-invoices`, `POST /v1/sale-invoices/{id}/lines`, `PATCH /v1/sale-invoices/{id}/post`
+    - Rivile ERP calls: `GET /v1/clients`, `POST /v1/clients`, `GET /v1/sale-invoices`, `POST /v1/sale-invoices`, `PATCH /v1/sale-invoices/{id}/post`
     - Inputs: `client_code` (optional), `reg_code` (optional), `vat_number` (optional), `name` (optional), `client_type` (optional), `address` (optional), `email` (optional), `phone` (optional), `is_customer` (optional), `is_supplier` (optional), `number` (optional), `date` (optional), `document_date` (optional), `department_code`, `currency_code` (optional), `prices_include_tax` (optional), `notes` (optional), `lines`, `post` (optional)
-    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `posted`, `record`
+    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `total_with_tax`, `status_id`, `posted`, `post_note`, `record`
 
     ### Create purchase invoice
 
-    Creates a purchase invoice with its lines (POST /v1/purchase-invoices), finding or creating the client first when no client code is given; lines beyond the first 100 are added one by one, and it can post the document. If a later call fails, the step says exactly what was already created and is not retried.
+    Creates a purchase invoice with up to 100 lines in one request (POST /v1/purchase-invoices), after finding the client by code — or finding or creating it by registration or VAT code — and can post it. If a later call fails, the step says exactly what was already created and is not retried.
 
     - Action id: `create_purchase_invoice`
     - Kind: write
-    - Rivile ERP calls: `GET /v1/clients`, `POST /v1/clients`, `GET /v1/purchase-invoices`, `POST /v1/purchase-invoices`, `POST /v1/purchase-invoices/{id}/lines`, `PATCH /v1/purchase-invoices/{id}/post`
+    - Rivile ERP calls: `GET /v1/clients`, `POST /v1/clients`, `GET /v1/purchase-invoices`, `POST /v1/purchase-invoices`, `PATCH /v1/purchase-invoices/{id}/post`
     - Inputs: `client_code` (optional), `reg_code` (optional), `vat_number` (optional), `name` (optional), `client_type` (optional), `address` (optional), `email` (optional), `phone` (optional), `is_customer` (optional), `is_supplier` (optional), `number` (optional), `date` (optional), `document_date` (optional), `department_code`, `currency_code` (optional), `prices_include_tax` (optional), `notes` (optional), `lines`, `post` (optional)
-    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `posted`, `record`
+    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `total_with_tax`, `status_id`, `posted`, `post_note`, `record`
 
     ### Download document file
 
@@ -56,7 +56,7 @@ components:
 
     - Action id: `download_document_file`
     - Kind: read
-    - Rivile ERP calls: `GET /v1/files/{id}/content`, `GET of the document`
+    - Rivile ERP calls: the document's own read by id, `GET /v1/files/{id}/content`
     - Inputs: `file_id` (optional), `document_type` (optional), `document_id` (optional), `file_name` (optional)
     - Results: `found`, `document_file`, `file_id`, `original_filename`, `size_bytes`
 
@@ -88,7 +88,7 @@ components:
     - Kind: read
     - Rivile ERP calls: `GET /v1/inventory-stocks`
     - Inputs: `product_code` (optional), `department_code` (optional), `max_pages` (optional)
-    - Results: `items`, `count`, `total_available`, `has_more`
+    - Results: `items`, `count`, `totals`, `has_more`
 
     ### Product prices
 
@@ -98,7 +98,7 @@ components:
     - Kind: read
     - Rivile ERP calls: `GET /v1/sale-prices`
     - Inputs: `product_code`, `price_category_code` (optional), `currency_code` (optional), `department_code` (optional)
-    - Results: `prices`, `count`
+    - Results: `prices`, `count`, `has_more`
 
     ### Changes since
 
@@ -106,19 +106,19 @@ components:
 
     - Action id: `changes_since`
     - Kind: read
-    - Rivile ERP calls: `GET of the chosen list`
-    - Inputs: `entity`, `since`, `max_pages` (optional)
+    - Rivile ERP calls: the chosen list, filtered on updatedAt
+    - Inputs: `entity`, `since`, `page` (optional), `max_pages` (optional)
     - Results: `records`, `count`, `has_more`, `next_page`
 
     ### Client debt
 
-    Open amounts of one client from the receivables and payables registry (GET /v1/pr-registries, totalBaseDue), with the overdue part.
+    Open amounts of one client from the receivables and payables registry (GET /v1/pr-registries, totalBaseDue), totalled per registry type, with the overdue part.
 
     - Action id: `client_debt`
     - Kind: read
     - Rivile ERP calls: `GET /v1/pr-registries`
     - Inputs: `client_code`, `max_pages` (optional)
-    - Results: `total_due`, `overdue`, `documents`, `count`, `has_more`
+    - Results: `total_due`, `overdue`, `totals_by_type`, `documents`, `count`, `complete`, `has_more`
 - component_id: operations_behaviour
   type: markdown
   title: How operations behave
@@ -147,7 +147,6 @@ components:
     - **Timeout, 5xx or a lost connection on a write:** Rivile may have saved it, and Rivile ERP has no idempotency key. The step fails as `timeout_unknown` and is not retried; check the record in Rivile ERP first.
     - Rivile stops a request after 5 minutes. Request bodies are limited to 5 MB.
     - If a step that writes several things fails half-way, it says exactly what was already created and is not retried.
-    - Rivile ERP bills API use per request, according to a third-party source (not documented officially); a step that reads many pages sends many requests.
 - component_id: advanced_intro
   type: markdown
   title: Advanced endpoints
@@ -157,1151 +156,889 @@ components:
   type: markdown
   title: Clients
   body: |
-    ### Clients: Clients (GET /v1/clients)
+    ### List clients
 
-    Returns Client list. Fields available for filtering: id, createdAt, priceCategoryId, importReference, active, code, typeId, regCode, vatNumber, name, email, isCustomer, isSupplier, updatedAt, workflowStatusId, workflowStatusCode, economicActivity
-
-    - Action id: `get_clients` · read · Rivile ERP: `GET /v1/clients`
+    - Action id: `get_clients` · read · `GET /v1/clients` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/client-controller/list_15)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Clients: Create client (POST /v1/clients)
+    ### Create client
 
-    Create new client
-
-    - Action id: `post_clients` · write · Rivile ERP: `POST /v1/clients`
+    - Action id: `post_clients` · write · `POST /v1/clients` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/client-controller/create_18)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Clients: Get client (GET /v1/clients/{id})
+    ### Get client
 
-    Returns full client by id.
-
-    - Action id: `get_clients_id` · read · Rivile ERP: `GET /v1/clients/{id}`
+    - Action id: `get_clients_id` · read · `GET /v1/clients/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/client-controller/item_5)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Clients: Update client (PATCH /v1/clients/{id})
+    ### Update client
 
-    Update existing client
-
-    - Action id: `patch_clients_id` · write · Rivile ERP: `PATCH /v1/clients/{id}`
+    - Action id: `patch_clients_id` · write · `PATCH /v1/clients/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/client-controller/update_5)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Clients: Update workflow status (PATCH /v1/clients/{id}/workflow-status)
+    ### Update client workflow status
 
-    Update workflow status
-
-    - Action id: `patch_clients_id_workflow_status` · write · Rivile ERP: `PATCH /v1/clients/{id}/workflow-status`
+    - Action id: `patch_clients_id_workflow_status` · write · `PATCH /v1/clients/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/client-controller/changeWorkflowStatus_9)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_2
   type: markdown
   title: Contacts
   body: |
-    ### Contacts: Contacts (GET /v1/contacts)
+    ### List contacts
 
-    Returns Contact list. Fields available for filtering: id, code, name, title, email, phone, clientId, clientCode, isMain, notes, active, updatedAt, createdAt
-
-    - Action id: `get_contacts` · read · Rivile ERP: `GET /v1/contacts`
+    - Action id: `get_contacts` · read · `GET /v1/contacts` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/contact-controller/list_14)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Contacts: Create contact (POST /v1/contacts)
+    ### Create contact
 
-    Create new contact
-
-    - Action id: `post_contacts` · write · Rivile ERP: `POST /v1/contacts`
+    - Action id: `post_contacts` · write · `POST /v1/contacts` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/contact-controller/create_17)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Contacts: Get contact (GET /v1/contacts/{id})
+    ### Get contact
 
-    Returns full contact by id.
-
-    - Action id: `get_contacts_id` · read · Rivile ERP: `GET /v1/contacts/{id}`
+    - Action id: `get_contacts_id` · read · `GET /v1/contacts/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/contact-controller/item_4)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Contacts: Update contact (PATCH /v1/contacts/{id})
+    ### Update contact
 
-    Update existing contact
-
-    - Action id: `patch_contacts_id` · write · Rivile ERP: `PATCH /v1/contacts/{id}`
+    - Action id: `patch_contacts_id` · write · `PATCH /v1/contacts/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/contact-controller/update_4)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_3
   type: markdown
   title: Deliveries
   body: |
-    ### Deliveries: Deliveries list (GET /v1/deliveries)
+    ### List deliveries
 
-    Returns deliveries list. Fields available for filtering: id, createdAt, updatedAt, documentNo, docReference, typeId, statusId, groupingCode, workflowStatusId, workflowStatusCode, departmentId, departmentCode, ioDepartmentId, ioDepartmentCode, ioClientId, ioClientCode, journalId, journalCode
-
-    - Action id: `get_deliveries` · read · Rivile ERP: `GET /v1/deliveries`
+    - Action id: `get_deliveries` · read · `GET /v1/deliveries` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/list_13)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Deliveries: Create delivery (POST /v1/deliveries)
+    ### Create delivery
 
-    Creates new delivery
-
-    - Action id: `post_deliveries` · write · Rivile ERP: `POST /v1/deliveries`
+    - Action id: `post_deliveries` · write · `POST /v1/deliveries` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/create_15)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Deliveries: Delete delivery (DELETE /v1/deliveries/{deliveryId})
+    ### Delete delivery
 
-    Deletes delivery
-
-    - Action id: `delete_deliveries_delivery_id` · write · Rivile ERP: `DELETE /v1/deliveries/{deliveryId}`
+    - Action id: `delete_deliveries_delivery_id` · write · `DELETE /v1/deliveries/{deliveryId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/delete)
     - Inputs: `delivery_id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Deliveries: Get delivery (GET /v1/deliveries/{deliveryId})
+    ### Get delivery
 
-    Returns full delivery by id.
-
-    - Action id: `get_deliveries_delivery_id` · read · Rivile ERP: `GET /v1/deliveries/{deliveryId}`
+    - Action id: `get_deliveries_delivery_id` · read · `GET /v1/deliveries/{deliveryId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/item_3)
     - Inputs: `delivery_id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Deliveries: Update delivery (PATCH /v1/deliveries/{deliveryId})
+    ### Update delivery
 
-    Update existing delivery
-
-    - Action id: `patch_deliveries_delivery_id` · write · Rivile ERP: `PATCH /v1/deliveries/{deliveryId}`
+    - Action id: `patch_deliveries_delivery_id` · write · `PATCH /v1/deliveries/{deliveryId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/update_3)
     - Inputs: `delivery_id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Deliveries: Create delivery line (POST /v1/deliveries/{deliveryId}/lines)
+    ### Create delivery line
 
-    Creates new line in delivery
-
-    - Action id: `post_deliveries_delivery_id_lines` · write · Rivile ERP: `POST /v1/deliveries/{deliveryId}/lines`
+    - Action id: `post_deliveries_delivery_id_lines` · write · `POST /v1/deliveries/{deliveryId}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/create_16)
     - Inputs: `delivery_id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Deliveries: Delete delivery line (DELETE /v1/deliveries/{deliveryId}/lines/{lineId})
+    ### Delete delivery line
 
-    Deletes delivery line
-
-    - Action id: `delete_deliveries_delivery_id_lines_line_id` · write · Rivile ERP: `DELETE /v1/deliveries/{deliveryId}/lines/{lineId}`
+    - Action id: `delete_deliveries_delivery_id_lines_line_id` · write · `DELETE /v1/deliveries/{deliveryId}/lines/{lineId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/deleteLine)
     - Inputs: `delivery_id`, `line_id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Deliveries: Get delivery line (GET /v1/deliveries/{deliveryId}/lines/{lineId})
+    ### Get delivery line
 
-    Returns full delivery line by id.
-
-    - Action id: `get_deliveries_delivery_id_lines_line_id` · read · Rivile ERP: `GET /v1/deliveries/{deliveryId}/lines/{lineId}`
+    - Action id: `get_deliveries_delivery_id_lines_line_id` · read · `GET /v1/deliveries/{deliveryId}/lines/{lineId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/itemLine)
     - Inputs: `delivery_id`, `line_id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Deliveries: Update delivery line (PATCH /v1/deliveries/{deliveryId}/lines/{lineId})
+    ### Update delivery line
 
-    Update existing delivery line
-
-    - Action id: `patch_deliveries_delivery_id_lines_line_id` · write · Rivile ERP: `PATCH /v1/deliveries/{deliveryId}/lines/{lineId}`
+    - Action id: `patch_deliveries_delivery_id_lines_line_id` · write · `PATCH /v1/deliveries/{deliveryId}/lines/{lineId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/updateLine)
     - Inputs: `delivery_id`, `line_id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Deliveries: Update delivery line workflow status (PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status)
+    ### Update delivery line workflow status
 
-    Update delivery line workflow status
-
-    - Action id: `patch_deliveries_delivery_id_lines_line_id_workflow_status` · write · Rivile ERP: `PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status`
+    - Action id: `patch_deliveries_delivery_id_lines_line_id_workflow_status` · write · `PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/changeLineWorkflowStatus)
     - Inputs: `delivery_id`, `line_id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Deliveries: Post delivery (PATCH /v1/deliveries/{deliveryId}/post)
+    ### Post delivery
 
-    Posts delivery
-
-    - Action id: `patch_deliveries_delivery_id_post` · write · Rivile ERP: `PATCH /v1/deliveries/{deliveryId}/post`
+    - Action id: `patch_deliveries_delivery_id_post` · write · `PATCH /v1/deliveries/{deliveryId}/post` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/post_6)
     - Inputs: `delivery_id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Deliveries: UnPost delivery (PATCH /v1/deliveries/{deliveryId}/unpost)
+    ### Unpost delivery
 
-    UnPosts delivery
-
-    - Action id: `patch_deliveries_delivery_id_unpost` · write · Rivile ERP: `PATCH /v1/deliveries/{deliveryId}/unpost`
+    - Action id: `patch_deliveries_delivery_id_unpost` · write · `PATCH /v1/deliveries/{deliveryId}/unpost` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/unpost_6)
     - Inputs: `delivery_id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Deliveries: Update delivery workflow status (PATCH /v1/deliveries/{deliveryId}/workflow-status)
+    ### Update delivery workflow status
 
-    Update delivery workflow status
-
-    - Action id: `patch_deliveries_delivery_id_workflow_status` · write · Rivile ERP: `PATCH /v1/deliveries/{deliveryId}/workflow-status`
+    - Action id: `patch_deliveries_delivery_id_workflow_status` · write · `PATCH /v1/deliveries/{deliveryId}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/delivery-controller/changeWorkflowStatus_8)
     - Inputs: `delivery_id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_4
   type: markdown
   title: Employees
   body: |
-    ### Employees: Employee and agreements (GET /v1/employees)
+    ### List employees with their agreements
 
-    Returns employee list with agreements. Fields available for filtering: id, code, name, active updatedAt, createdAt, usedInPayrolls, mainDepartmentCode, positionCode
-
-    - Action id: `get_employees` · read · Rivile ERP: `GET /v1/employees`
+    - Action id: `get_employees` · read · `GET /v1/employees` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/employee-controller/list_19)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 - component_id: advanced_group_5
   type: markdown
   title: Files
   body: |
-    ### Files: Get file content (GET /v1/files/{id}/content)
+    ### Get file content
 
-    Returns full file content by id.
-
-    - Action id: `get_files_id_content` · read · Rivile ERP: `GET /v1/files/{id}/content`
+    - Action id: `get_files_id_content` · read · `GET /v1/files/{id}/content` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/file-controller/getFileContentById)
     - Inputs: `id`
     - Results: `endpoint`, `document_file`, `size_bytes`, `original_content_type`, `http_status`, `duration_ms`
 - component_id: advanced_group_6
   type: markdown
   title: Gift cards
   body: |
-    ### Gift cards: Gift cards (GET /v1/gift-cards)
+    ### List gift cards
 
-    Returns gift card list. Fields available for filtering: id, createdAt, updatedAt, code, typeId, nominal, dateTo, serviceItemCode, serviceItemId
-
-    - Action id: `get_gift_cards` · read · Rivile ERP: `GET /v1/gift-cards`
+    - Action id: `get_gift_cards` · read · `GET /v1/gift-cards` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/gift-card-controller/list_12)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Gift cards: Create gift card (POST /v1/gift-cards)
+    ### Create gift card
 
-    Create new gift card
-
-    - Action id: `post_gift_cards` · write · Rivile ERP: `POST /v1/gift-cards`
+    - Action id: `post_gift_cards` · write · `POST /v1/gift-cards` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/gift-card-controller/create_14)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Gift cards: Get gift card (GET /v1/gift-cards/{id})
+    ### Get gift card
 
-    Returns full gift card by id.
-
-    - Action id: `get_gift_cards_id` · read · Rivile ERP: `GET /v1/gift-cards/{id}`
+    - Action id: `get_gift_cards_id` · read · `GET /v1/gift-cards/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/gift-card-controller/item_2)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Gift cards: Update gift card (PATCH /v1/gift-cards/{id})
+    ### Update gift card
 
-    Update existing gift card
-
-    - Action id: `patch_gift_cards_id` · write · Rivile ERP: `PATCH /v1/gift-cards/{id}`
+    - Action id: `patch_gift_cards_id` · write · `PATCH /v1/gift-cards/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/gift-card-controller/update_2)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Gift cards: Activate gift card (PATCH /v1/gift-cards/{id}/activate)
+    ### Activate gift card
 
-    Activate existing gift card. Optionally can pass activationDate in request body
+    An activationDate may be given in the body.
 
-    - Action id: `patch_gift_cards_id_activate` · write · Rivile ERP: `PATCH /v1/gift-cards/{id}/activate`
+    - Action id: `patch_gift_cards_id_activate` · write · `PATCH /v1/gift-cards/{id}/activate` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/gift-card-controller/activate)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Gift cards: Cancel gift card (PATCH /v1/gift-cards/{id}/cancel)
+    ### Cancel gift card
 
-    - Action id: `patch_gift_cards_id_cancel` · write · Rivile ERP: `PATCH /v1/gift-cards/{id}/cancel`
+    - Action id: `patch_gift_cards_id_cancel` · write · `PATCH /v1/gift-cards/{id}/cancel` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/gift-card-controller/cancel_3)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Gift cards: Undo cancellation gift card (PATCH /v1/gift-cards/{id}/undo-cancellation)
+    ### Undo cancellation of gift card
 
-    - Action id: `patch_gift_cards_id_undo_cancellation` · write · Rivile ERP: `PATCH /v1/gift-cards/{id}/undo-cancellation`
+    - Action id: `patch_gift_cards_id_undo_cancellation` · write · `PATCH /v1/gift-cards/{id}/undo-cancellation` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/gift-card-controller/undoCancellation_3)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 - component_id: advanced_group_7
   type: markdown
   title: Inventory adjustments
   body: |
-    ### Inventory adjustments: Inventory adjustments list (GET /v1/inventory-adjustments)
+    ### List inventory adjustments
 
-    Returns inventory adjustments list. Fields available for filtering: id, createdAt, updatedAt, documentNo, opDate, statusId, journalId, journalCode ,sourcingMethod, gpaisSaleMethod, assigneeId, committeeId, docReference, importReference, notes
-
-    - Action id: `get_inventory_adjustments` · read · Rivile ERP: `GET /v1/inventory-adjustments`
+    - Action id: `get_inventory_adjustments` · read · `GET /v1/inventory-adjustments` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-adjustment-controller/list_11)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Inventory adjustments: Create inventory adjustment (POST /v1/inventory-adjustments)
+    ### Create inventory adjustment
 
-    Creates new inventory adjustment
-
-    - Action id: `post_inventory_adjustments` · write · Rivile ERP: `POST /v1/inventory-adjustments`
+    - Action id: `post_inventory_adjustments` · write · `POST /v1/inventory-adjustments` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-adjustment-controller/create_12)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Inventory adjustments: Delete inventory adjustment (DELETE /v1/inventory-adjustments/{id})
+    ### Delete inventory adjustment
 
-    Deletes inventory adjustment
-
-    - Action id: `delete_inventory_adjustments_id` · write · Rivile ERP: `DELETE /v1/inventory-adjustments/{id}`
+    - Action id: `delete_inventory_adjustments_id` · write · `DELETE /v1/inventory-adjustments/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-adjustment-controller/delete_7)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Inventory adjustments: Get inventory adjustment (GET /v1/inventory-adjustments/{id})
+    ### Get inventory adjustment
 
-    Returns full inventory adjustment by id.
-
-    - Action id: `get_inventory_adjustments_id` · read · Rivile ERP: `GET /v1/inventory-adjustments/{id}`
+    - Action id: `get_inventory_adjustments_id` · read · `GET /v1/inventory-adjustments/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-adjustment-controller/item_14)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Inventory adjustments: Create inventory adjustment line (POST /v1/inventory-adjustments/{id}/lines)
+    ### Create inventory adjustment line
 
-    Creates new line in inventory adjustment
-
-    - Action id: `post_inventory_adjustments_id_lines` · write · Rivile ERP: `POST /v1/inventory-adjustments/{id}/lines`
+    - Action id: `post_inventory_adjustments_id_lines` · write · `POST /v1/inventory-adjustments/{id}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-adjustment-controller/create_13)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Inventory adjustments: Post inventory adjustment (PATCH /v1/inventory-adjustments/{id}/post)
+    ### Post inventory adjustment
 
-    Posts inventory adjustment
-
-    - Action id: `patch_inventory_adjustments_id_post` · write · Rivile ERP: `PATCH /v1/inventory-adjustments/{id}/post`
+    - Action id: `patch_inventory_adjustments_id_post` · write · `PATCH /v1/inventory-adjustments/{id}/post` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-adjustment-controller/post_5)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Inventory adjustments: UnPost inventory adjustment (PATCH /v1/inventory-adjustments/{id}/unpost)
+    ### Unpost inventory adjustment
 
-    UnPosts inventory adjustment
-
-    - Action id: `patch_inventory_adjustments_id_unpost` · write · Rivile ERP: `PATCH /v1/inventory-adjustments/{id}/unpost`
+    - Action id: `patch_inventory_adjustments_id_unpost` · write · `PATCH /v1/inventory-adjustments/{id}/unpost` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-adjustment-controller/unpost_5)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 - component_id: advanced_group_8
   type: markdown
   title: Inventory movements
   body: |
-    ### Inventory movements: Inventory movements list (GET /v1/inventory-movements)
+    ### List inventory movements
 
-    Returns inventory movements list. Fields available for filtering: id, createdAt, updatedAt, documentNo, opDate, statusId, journalId, journalCode, departmentOutId, departmentInId, assigneeId, docReference, importReference, workflowStatusId, workflowStatusCode, notes
-
-    - Action id: `get_inventory_movements` · read · Rivile ERP: `GET /v1/inventory-movements`
+    - Action id: `get_inventory_movements` · read · `GET /v1/inventory-movements` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/list_10)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Inventory movements: Create inventory movement (POST /v1/inventory-movements)
+    ### Create inventory movement
 
-    Creates new inventory movement
-
-    - Action id: `post_inventory_movements` · write · Rivile ERP: `POST /v1/inventory-movements`
+    - Action id: `post_inventory_movements` · write · `POST /v1/inventory-movements` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/create_10)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Inventory movements: Delete inventory movement (DELETE /v1/inventory-movements/{id})
+    ### Delete inventory movement
 
-    Deletes inventory movement
-
-    - Action id: `delete_inventory_movements_id` · write · Rivile ERP: `DELETE /v1/inventory-movements/{id}`
+    - Action id: `delete_inventory_movements_id` · write · `DELETE /v1/inventory-movements/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/delete_6)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Inventory movements: Get inventory movement (GET /v1/inventory-movements/{id})
+    ### Get inventory movement
 
-    Returns full inventory movement by id.
-
-    - Action id: `get_inventory_movements_id` · read · Rivile ERP: `GET /v1/inventory-movements/{id}`
+    - Action id: `get_inventory_movements_id` · read · `GET /v1/inventory-movements/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/item_13)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Inventory movements: Create inventory movement line (POST /v1/inventory-movements/{id}/lines)
+    ### Create inventory movement line
 
-    Creates new line in in inventory movement
-
-    - Action id: `post_inventory_movements_id_lines` · write · Rivile ERP: `POST /v1/inventory-movements/{id}/lines`
+    - Action id: `post_inventory_movements_id_lines` · write · `POST /v1/inventory-movements/{id}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/create_11)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Inventory movements: Post inventory movement (PATCH /v1/inventory-movements/{id}/post)
+    ### Post inventory movement
 
-    Posts inventory movement
-
-    - Action id: `patch_inventory_movements_id_post` · write · Rivile ERP: `PATCH /v1/inventory-movements/{id}/post`
+    - Action id: `patch_inventory_movements_id_post` · write · `PATCH /v1/inventory-movements/{id}/post` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/post_4)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Inventory movements: UnPost inventory movement (PATCH /v1/inventory-movements/{id}/unpost)
+    ### Unpost inventory movement
 
-    UnPosts inventory movement
-
-    - Action id: `patch_inventory_movements_id_unpost` · write · Rivile ERP: `PATCH /v1/inventory-movements/{id}/unpost`
+    - Action id: `patch_inventory_movements_id_unpost` · write · `PATCH /v1/inventory-movements/{id}/unpost` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/unpost_4)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Inventory movements: Update workflow status (PATCH /v1/inventory-movements/{id}/workflow-status)
+    ### Update inventory movement workflow status
 
-    Update workflow status
-
-    - Action id: `patch_inventory_movements_id_workflow_status` · write · Rivile ERP: `PATCH /v1/inventory-movements/{id}/workflow-status`
+    - Action id: `patch_inventory_movements_id_workflow_status` · write · `PATCH /v1/inventory-movements/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-movement-controller/changeWorkflowStatus_7)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_9
   type: markdown
   title: Inventory stock
   body: |
-    ### Inventory stock: Inventory stock (GET /v1/inventory-stocks)
+    ### List inventory stock
 
-    Returns Inventory stock list. Fields available for filtering: productId, productCode, serial, uomId, uomCode, departmentId, departmentCode, lotId, lotCode, markId, markCode, objectId, objectCode, qtyAltAvailable qtyAltWarehouse
-
-    - Action id: `get_inventory_stocks` · read · Rivile ERP: `GET /v1/inventory-stocks`
+    - Action id: `get_inventory_stocks` · read · `GET /v1/inventory-stocks` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/inventory-stock-controller/list_18)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 - component_id: advanced_group_10
   type: markdown
   title: Lots
   body: |
-    ### Lots: Lots (GET /v1/lots)
+    ### List lots
 
-    Returns Lot list. Fields available for filtering: id, createdAt, updatedAt, active, code, name, expirationDate
-
-    - Action id: `get_lots` · read · Rivile ERP: `GET /v1/lots`
+    - Action id: `get_lots` · read · `GET /v1/lots` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/lot-controller/list_9)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Lots: Create lot (POST /v1/lots)
+    ### Create lot
 
-    Create new lot
-
-    - Action id: `post_lots` · write · Rivile ERP: `POST /v1/lots`
+    - Action id: `post_lots` · write · `POST /v1/lots` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/lot-controller/create_9)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Lots: Get lot (GET /v1/lots/{id})
+    ### Get lot
 
-    Returns full lot by id.
-
-    - Action id: `get_lots_id` · read · Rivile ERP: `GET /v1/lots/{id}`
+    - Action id: `get_lots_id` · read · `GET /v1/lots/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/lot-controller/item_1)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Lots: Update lot (PATCH /v1/lots/{id})
+    ### Update lot
 
-    Update existing lot
-
-    - Action id: `patch_lots_id` · write · Rivile ERP: `PATCH /v1/lots/{id}`
+    - Action id: `patch_lots_id` · write · `PATCH /v1/lots/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/lot-controller/update_1)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_11
   type: markdown
   title: Manufacturing
   body: |
-    ### Manufacturing: Manufactures list (GET /v1/manufactures)
+    ### List manufactures
 
-    Returns manufactures list. Fields available for filtering: id, createdAt, updatedAt, documentNo, opDate, statusId, journalId, journalCode, assigneeId, docReference, importReference, workflowStatusId, workflowStatusCode, notes
-
-    - Action id: `get_manufactures` · read · Rivile ERP: `GET /v1/manufactures`
+    - Action id: `get_manufactures` · read · `GET /v1/manufactures` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/list_8)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Manufacturing: Create manufacture (POST /v1/manufactures)
+    ### Create manufacture
 
-    Creates new manufacture
-
-    - Action id: `post_manufactures` · write · Rivile ERP: `POST /v1/manufactures`
+    - Action id: `post_manufactures` · write · `POST /v1/manufactures` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/create_7)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Manufacturing: Delete manufacture (DELETE /v1/manufactures/{id})
+    ### Delete manufacture
 
-    Deletes manufacture
-
-    - Action id: `delete_manufactures_id` · write · Rivile ERP: `DELETE /v1/manufactures/{id}`
+    - Action id: `delete_manufactures_id` · write · `DELETE /v1/manufactures/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/delete_5)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Manufacturing: Get manufacture (GET /v1/manufactures/{id})
+    ### Get manufacture
 
-    Returns full manufacture by id.
-
-    - Action id: `get_manufactures_id` · read · Rivile ERP: `GET /v1/manufactures/{id}`
+    - Action id: `get_manufactures_id` · read · `GET /v1/manufactures/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/item_12)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Manufacturing: Create manufacture line (POST /v1/manufactures/{id}/lines)
+    ### Create manufacture line
 
-    Creates new line in manufacture
-
-    - Action id: `post_manufactures_id_lines` · write · Rivile ERP: `POST /v1/manufactures/{id}/lines`
+    - Action id: `post_manufactures_id_lines` · write · `POST /v1/manufactures/{id}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/create_8)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Manufacturing: Post manufacture (PATCH /v1/manufactures/{id}/post)
+    ### Post manufacture
 
-    Posts manufacture
-
-    - Action id: `patch_manufactures_id_post` · write · Rivile ERP: `PATCH /v1/manufactures/{id}/post`
+    - Action id: `patch_manufactures_id_post` · write · `PATCH /v1/manufactures/{id}/post` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/post_3)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Manufacturing: UnPost manufacture (PATCH /v1/manufactures/{id}/unpost)
+    ### Unpost manufacture
 
-    UnPosts manufacture
-
-    - Action id: `patch_manufactures_id_unpost` · write · Rivile ERP: `PATCH /v1/manufactures/{id}/unpost`
+    - Action id: `patch_manufactures_id_unpost` · write · `PATCH /v1/manufactures/{id}/unpost` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/unpost_3)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Manufacturing: Update workflow status (PATCH /v1/manufactures/{id}/workflow-status)
+    ### Update manufacture workflow status
 
-    Update workflow status
-
-    - Action id: `patch_manufactures_id_workflow_status` · write · Rivile ERP: `PATCH /v1/manufactures/{id}/workflow-status`
+    - Action id: `patch_manufactures_id_workflow_status` · write · `PATCH /v1/manufactures/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/manufacture-controller/changeWorkflowStatus_6)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_12
   type: markdown
   title: Payments
   body: |
-    ### Payments: Payments (GET /v1/payments)
+    ### List payments
 
-    Returns Payments list. Fields available for filtering: id documentNo opDate statusId typeId paymentMethodId paymentMethodCode accountId accountCode currencyId currencyCode clientId clientCode documentTypeId prAccountId prAccountCode departmentId departmentCode objectId objectCode journalId journalCode documentRef assigneeId assigneeCode workflowStatusId workflowStatusCode
-
-    - Action id: `get_payments` · read · Rivile ERP: `GET /v1/payments`
+    - Action id: `get_payments` · read · `GET /v1/payments` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/list_7)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Payments: Create payment (POST /v1/payments)
+    ### Create payment
 
-    Creates new payment
-
-    - Action id: `post_payments` · write · Rivile ERP: `POST /v1/payments`
+    - Action id: `post_payments` · write · `POST /v1/payments` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/create_6)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Payments: Get payment (GET /v1/payments/{id})
+    ### Get payment
 
-    Returns full payment by id.
-
-    - Action id: `get_payments_id` · read · Rivile ERP: `GET /v1/payments/{id}`
+    - Action id: `get_payments_id` · read · `GET /v1/payments/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/item_11)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Payments: Cancel payment (PATCH /v1/payments/{id}/cancel)
+    ### Cancel payment
 
-    Cancels payment
-
-    - Action id: `patch_payments_id_cancel` · write · Rivile ERP: `PATCH /v1/payments/{id}/cancel`
+    - Action id: `patch_payments_id_cancel` · write · `PATCH /v1/payments/{id}/cancel` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/cancel_2)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Payments: Link payment (PATCH /v1/payments/{id}/link-payment)
+    ### Link payment
 
-    Links payment to specific document
+    Links the payment to a sale or purchase invoice or order.
 
-    - Action id: `patch_payments_id_link_payment` · write · Rivile ERP: `PATCH /v1/payments/{id}/link-payment`
+    - Action id: `patch_payments_id_link_payment` · write · `PATCH /v1/payments/{id}/link-payment` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/linkPayment)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Payments: Post payment (PATCH /v1/payments/{id}/post)
+    ### Post payment
 
-    Posts payment
-
-    - Action id: `patch_payments_id_post` · write · Rivile ERP: `PATCH /v1/payments/{id}/post`
+    - Action id: `patch_payments_id_post` · write · `PATCH /v1/payments/{id}/post` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/post_2)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Payments: Undo cancellation payment (PATCH /v1/payments/{id}/undo-cancellation)
+    ### Undo cancellation of payment
 
-    Undoes cancellation for payment
-
-    - Action id: `patch_payments_id_undo_cancellation` · write · Rivile ERP: `PATCH /v1/payments/{id}/undo-cancellation`
+    - Action id: `patch_payments_id_undo_cancellation` · write · `PATCH /v1/payments/{id}/undo-cancellation` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/undoCancellation_2)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Payments: UnPost payment (PATCH /v1/payments/{id}/unpost)
+    ### Unpost payment
 
-    UnPosts payment
-
-    - Action id: `patch_payments_id_unpost` · write · Rivile ERP: `PATCH /v1/payments/{id}/unpost`
+    - Action id: `patch_payments_id_unpost` · write · `PATCH /v1/payments/{id}/unpost` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/unpost_2)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Payments: Update workflow status (PATCH /v1/payments/{id}/workflow-status)
+    ### Update payment workflow status
 
-    Update workflow status
-
-    - Action id: `patch_payments_id_workflow_status` · write · Rivile ERP: `PATCH /v1/payments/{id}/workflow-status`
+    - Action id: `patch_payments_id_workflow_status` · write · `PATCH /v1/payments/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/payment-controller/changeWorkflowStatus_5)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_13
   type: markdown
   title: Products
   body: |
-    ### Products: Products (GET /v1/products)
+    ### List products
 
-    Returns Product list. Fields available for filtering: id, createdAt, active, code, mainBarcode, importReference, productTypeId, priceStrategyId, bomTypeId, name, updatedAt, workflowStatusId, workflowStatusCode, mainProductGroupName, mainProductGroupCode, mainProductGroupId, isEcommerce
-
-    - Action id: `get_products` · read · Rivile ERP: `GET /v1/products`
+    - Action id: `get_products` · read · `GET /v1/products` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/list_6)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Products: Create product (POST /v1/products)
+    ### Create product
 
-    Create new product
-
-    - Action id: `post_products` · write · Rivile ERP: `POST /v1/products`
+    - Action id: `post_products` · write · `POST /v1/products` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/create_4)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Products: Update product unit of measure (PATCH /v1/products/product-uom/{id})
+    ### Update product unit of measure
 
-    Update existing product unit of measure
-
-    - Action id: `patch_products_product_uom_id` · write · Rivile ERP: `PATCH /v1/products/product-uom/{id}`
+    - Action id: `patch_products_product_uom_id` · write · `PATCH /v1/products/product-uom/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/updateProductUnitOfMeasure)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Products: Get product (GET /v1/products/{id})
+    ### Get product
 
-    Returns full product by id.
-
-    - Action id: `get_products_id` · read · Rivile ERP: `GET /v1/products/{id}`
+    - Action id: `get_products_id` · read · `GET /v1/products/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/item)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Products: Update product (PATCH /v1/products/{id})
+    ### Update product
 
-    Update existing product
-
-    - Action id: `patch_products_id` · write · Rivile ERP: `PATCH /v1/products/{id}`
+    - Action id: `patch_products_id` · write · `PATCH /v1/products/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/update)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Products: Create product price (POST /v1/products/{id}/price)
+    ### Create product price
 
-    Create new product price
-
-    - Action id: `post_products_id_price` · write · Rivile ERP: `POST /v1/products/{id}/price`
+    - Action id: `post_products_id_price` · write · `POST /v1/products/{id}/price` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/addPrice)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Products: Create product unit of measure (POST /v1/products/{id}/product-uom)
+    ### Create product unit of measure
 
-    Create new product unit of measure in product
-
-    - Action id: `post_products_id_product_uom` · write · Rivile ERP: `POST /v1/products/{id}/product-uom`
+    - Action id: `post_products_id_product_uom` · write · `POST /v1/products/{id}/product-uom` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/create_5)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Products: Update workflow status (PATCH /v1/products/{id}/workflow-status)
+    ### Update product workflow status
 
-    Update workflow status
-
-    - Action id: `patch_products_id_workflow_status` · write · Rivile ERP: `PATCH /v1/products/{id}/workflow-status`
+    - Action id: `patch_products_id_workflow_status` · write · `PATCH /v1/products/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/product-controller/changeWorkflowStatus_4)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_14
   type: markdown
   title: Purchase invoices
   body: |
-    ### Purchase invoices: Purchase invoices list (GET /v1/purchase-invoices)
+    ### List purchase invoices
 
-    Returns purchase invoices list. Fields available for filtering: id, createdAt, clientId, clientCode journalId, journalCode, supplierAgreementId, supplierAgreementCode, isSent, opDate, docDate, typeId, documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode
-
-    - Action id: `get_purchase_invoices` · read · Rivile ERP: `GET /v1/purchase-invoices`
+    - Action id: `get_purchase_invoices` · read · `GET /v1/purchase-invoices` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/list_5)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Create purchase invoice (POST /v1/purchase-invoices)
+    ### Create purchase invoice
 
-    Creates new purchase invoice
-
-    - Action id: `post_purchase_invoices` · write · Rivile ERP: `POST /v1/purchase-invoices`
+    - Action id: `post_purchase_invoices` · write · `POST /v1/purchase-invoices` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/create_2)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Create purchase invoice from order (POST /v1/purchase-invoices/from/purchase-order/{id})
+    ### Create purchase invoice from order
 
-    Creates purchase invoice from order
-
-    - Action id: `post_purchase_invoices_from_purchase_order_id` · write · Rivile ERP: `POST /v1/purchase-invoices/from/purchase-order/{id}`
+    - Action id: `post_purchase_invoices_from_purchase_order_id` · write · `POST /v1/purchase-invoices/from/purchase-order/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/createFromPurchaseOrder)
     - Inputs: `id`, `body` (optional)
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Delete purchase invoice (DELETE /v1/purchase-invoices/{id})
+    ### Delete purchase invoice
 
-    Deletes purchase invoice
-
-    - Action id: `delete_purchase_invoices_id` · write · Rivile ERP: `DELETE /v1/purchase-invoices/{id}`
+    - Action id: `delete_purchase_invoices_id` · write · `DELETE /v1/purchase-invoices/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/delete_4)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Get purchase invoice (GET /v1/purchase-invoices/{id})
+    ### Get purchase invoice
 
-    Returns full purchase invoice by id.
-
-    - Action id: `get_purchase_invoices_id` · read · Rivile ERP: `GET /v1/purchase-invoices/{id}`
+    - Action id: `get_purchase_invoices_id` · read · `GET /v1/purchase-invoices/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/item_10)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Cancel purchase invoice (PATCH /v1/purchase-invoices/{id}/cancel)
+    ### Cancel purchase invoice
 
-    Cancels purchase invoice
-
-    - Action id: `patch_purchase_invoices_id_cancel` · write · Rivile ERP: `PATCH /v1/purchase-invoices/{id}/cancel`
+    - Action id: `patch_purchase_invoices_id_cancel` · write · `PATCH /v1/purchase-invoices/{id}/cancel` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/cancel_1)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Create fixed payment for purchase invoice (POST /v1/purchase-invoices/{id}/fixed-payments)
+    ### Create fixed payment for purchase invoice
 
-    Creates fixed payment for purchase invoice
-
-    - Action id: `post_purchase_invoices_id_fixed_payments` · write · Rivile ERP: `POST /v1/purchase-invoices/{id}/fixed-payments`
+    - Action id: `post_purchase_invoices_id_fixed_payments` · write · `POST /v1/purchase-invoices/{id}/fixed-payments` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/createPurchaseInvoiceFixedPayment)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Create purchase invoice line (POST /v1/purchase-invoices/{id}/lines)
+    ### Create purchase invoice line
 
-    Creates new line in purchase invoice
-
-    - Action id: `post_purchase_invoices_id_lines` · write · Rivile ERP: `POST /v1/purchase-invoices/{id}/lines`
+    - Action id: `post_purchase_invoices_id_lines` · write · `POST /v1/purchase-invoices/{id}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/create_3)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Post purchase invoice (PATCH /v1/purchase-invoices/{id}/post)
+    ### Post purchase invoice
 
-    Posts purchase invoice
-
-    - Action id: `patch_purchase_invoices_id_post` · write · Rivile ERP: `PATCH /v1/purchase-invoices/{id}/post`
+    - Action id: `patch_purchase_invoices_id_post` · write · `PATCH /v1/purchase-invoices/{id}/post` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/post_1)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Undo cancellation purchase invoice (PATCH /v1/purchase-invoices/{id}/undo-cancellation)
+    ### Undo cancellation of purchase invoice
 
-    Undoes cancellation of purchase invoice
-
-    - Action id: `patch_purchase_invoices_id_undo_cancellation` · write · Rivile ERP: `PATCH /v1/purchase-invoices/{id}/undo-cancellation`
+    - Action id: `patch_purchase_invoices_id_undo_cancellation` · write · `PATCH /v1/purchase-invoices/{id}/undo-cancellation` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/undoCancellation_1)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: UnPost purchase invoice (PATCH /v1/purchase-invoices/{id}/unpost)
+    ### Unpost purchase invoice
 
-    UnPosts purchase invoice
-
-    - Action id: `patch_purchase_invoices_id_unpost` · write · Rivile ERP: `PATCH /v1/purchase-invoices/{id}/unpost`
+    - Action id: `patch_purchase_invoices_id_unpost` · write · `PATCH /v1/purchase-invoices/{id}/unpost` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/unpost_1)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase invoices: Update workflow status (PATCH /v1/purchase-invoices/{id}/workflow-status)
+    ### Update purchase invoice workflow status
 
-    Update workflow status
-
-    - Action id: `patch_purchase_invoices_id_workflow_status` · write · Rivile ERP: `PATCH /v1/purchase-invoices/{id}/workflow-status`
+    - Action id: `patch_purchase_invoices_id_workflow_status` · write · `PATCH /v1/purchase-invoices/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-invoice-controller/changeWorkflowStatus_3)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_15
   type: markdown
   title: Purchase orders
   body: |
-    ### Purchase orders: Purchase orders list (GET /v1/purchase-orders)
+    ### List purchase orders
 
-    Returns purchase orders list. Fields available for filtering: id, createdAt, clientId, clientCode, journalId, journalCode, supplierAgreementId, supplierAgreementCode, isSent, opDate, docDate, documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode
-
-    - Action id: `get_purchase_orders` · read · Rivile ERP: `GET /v1/purchase-orders`
+    - Action id: `get_purchase_orders` · read · `GET /v1/purchase-orders` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/list_4)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Create purchase order (POST /v1/purchase-orders)
+    ### Create purchase order
 
-    Create new purchase order
-
-    - Action id: `post_purchase_orders` · write · Rivile ERP: `POST /v1/purchase-orders`
+    - Action id: `post_purchase_orders` · write · `POST /v1/purchase-orders` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/createPurchaseOrder)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Get purchase order line (GET /v1/purchase-orders/lines/{id})
+    ### Get purchase order line
 
-    Returns purchase order line by id.
-
-    - Action id: `get_purchase_orders_lines_id` · read · Rivile ERP: `GET /v1/purchase-orders/lines/{id}`
+    - Action id: `get_purchase_orders_lines_id` · read · `GET /v1/purchase-orders/lines/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/lineItem)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Delete purchase order (DELETE /v1/purchase-orders/{id})
+    ### Delete purchase order
 
-    Deletes purchase order
-
-    - Action id: `delete_purchase_orders_id` · write · Rivile ERP: `DELETE /v1/purchase-orders/{id}`
+    - Action id: `delete_purchase_orders_id` · write · `DELETE /v1/purchase-orders/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/delete_3)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Get purchase order (GET /v1/purchase-orders/{id})
+    ### Get purchase order
 
-    Returns full purchase order by id.
-
-    - Action id: `get_purchase_orders_id` · read · Rivile ERP: `GET /v1/purchase-orders/{id}`
+    - Action id: `get_purchase_orders_id` · read · `GET /v1/purchase-orders/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/item_9)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Approve purchase order (PATCH /v1/purchase-orders/{id}/approve)
+    ### Approve purchase order
 
-    Approves purchase order
-
-    - Action id: `patch_purchase_orders_id_approve` · write · Rivile ERP: `PATCH /v1/purchase-orders/{id}/approve`
+    - Action id: `patch_purchase_orders_id_approve` · write · `PATCH /v1/purchase-orders/{id}/approve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/approvePurchaseOrder)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Cancel approve purchase order (PATCH /v1/purchase-orders/{id}/cancel-approve)
+    ### Cancel approval of purchase order
 
-    Cancels approval of purchase order
-
-    - Action id: `patch_purchase_orders_id_cancel_approve` · write · Rivile ERP: `PATCH /v1/purchase-orders/{id}/cancel-approve`
+    - Action id: `patch_purchase_orders_id_cancel_approve` · write · `PATCH /v1/purchase-orders/{id}/cancel-approve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/cancelApprovePurchaseOrder)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Create purchase order line (POST /v1/purchase-orders/{id}/lines)
+    ### Create purchase order line
 
-    Creates new line in purchase order
-
-    - Action id: `post_purchase_orders_id_lines` · write · Rivile ERP: `POST /v1/purchase-orders/{id}/lines`
+    - Action id: `post_purchase_orders_id_lines` · write · `POST /v1/purchase-orders/{id}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/createPurchaseOrderLine)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Purchase orders: Update workflow status (PATCH /v1/purchase-orders/{id}/workflow-status)
+    ### Update purchase order workflow status
 
-    Update workflow status
-
-    - Action id: `patch_purchase_orders_id_workflow_status` · write · Rivile ERP: `PATCH /v1/purchase-orders/{id}/workflow-status`
+    - Action id: `patch_purchase_orders_id_workflow_status` · write · `PATCH /v1/purchase-orders/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/purchase-order-controller/changeWorkflowStatus_2)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_16
   type: markdown
   title: Receivables and payables
   body: |
-    ### Receivables and payables: PR registry (GET /v1/pr-registries)
+    ### List receivables and payables
 
-    Returns PR Registry list. Fields available for filtering: id, clientId, clientCode, clientName, documentNo, date, dueDate, totalCurDue, refModuleId, refId, typeId
-
-    - Action id: `get_pr_registries` · read · Rivile ERP: `GET /v1/pr-registries`
+    - Action id: `get_pr_registries` · read · `GET /v1/pr-registries` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/pr-registry-controller/list_17)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 - component_id: advanced_group_17
   type: markdown
   title: Sale invoices
   body: |
-    ### Sale invoices: Sale invoices list (GET /v1/sale-invoices)
+    ### List sale invoices
 
-    Returns sale invoices list. Fields available for filtering: id, createdAt, clientId, clientCode, journalId, journalCode, customerAgreementId, customerAgreementCode, isSent, opDate, docDate, typeId, documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode
-
-    - Action id: `get_sale_invoices` · read · Rivile ERP: `GET /v1/sale-invoices`
+    - Action id: `get_sale_invoices` · read · `GET /v1/sale-invoices` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/list_3)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Create sale invoice (POST /v1/sale-invoices)
+    ### Create sale invoice
 
-    Create new sale invoice
-
-    - Action id: `post_sale_invoices` · write · Rivile ERP: `POST /v1/sale-invoices`
+    - Action id: `post_sale_invoices` · write · `POST /v1/sale-invoices` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/create)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Create sale invoice from order (POST /v1/sale-invoices/from/sale-order/{id})
+    ### Create sale invoice from order
 
-    Create sale invoice from order
-
-    - Action id: `post_sale_invoices_from_sale_order_id` · write · Rivile ERP: `POST /v1/sale-invoices/from/sale-order/{id}`
+    - Action id: `post_sale_invoices_from_sale_order_id` · write · `POST /v1/sale-invoices/from/sale-order/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/createFromSaleOrder)
     - Inputs: `id`, `body` (optional)
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Delete sale invoice (DELETE /v1/sale-invoices/{id})
+    ### Delete sale invoice
 
-    Delete sale invoice
-
-    - Action id: `delete_sale_invoices_id` · write · Rivile ERP: `DELETE /v1/sale-invoices/{id}`
+    - Action id: `delete_sale_invoices_id` · write · `DELETE /v1/sale-invoices/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/delete_2)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Get sale invoice (GET /v1/sale-invoices/{id})
+    ### Get sale invoice
 
-    Returns full sale invoice by id.
-
-    - Action id: `get_sale_invoices_id` · read · Rivile ERP: `GET /v1/sale-invoices/{id}`
+    - Action id: `get_sale_invoices_id` · read · `GET /v1/sale-invoices/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/item_8)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Cancel sale invoice (PATCH /v1/sale-invoices/{id}/cancel)
+    ### Cancel sale invoice
 
-    Cancel sale invoice
-
-    - Action id: `patch_sale_invoices_id_cancel` · write · Rivile ERP: `PATCH /v1/sale-invoices/{id}/cancel`
+    - Action id: `patch_sale_invoices_id_cancel` · write · `PATCH /v1/sale-invoices/{id}/cancel` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/cancel)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Create fixed payment for sale invoice (POST /v1/sale-invoices/{id}/fixed-payments)
+    ### Create fixed payment for sale invoice
 
-    Create fixed payment for sale invoice
-
-    - Action id: `post_sale_invoices_id_fixed_payments` · write · Rivile ERP: `POST /v1/sale-invoices/{id}/fixed-payments`
+    - Action id: `post_sale_invoices_id_fixed_payments` · write · `POST /v1/sale-invoices/{id}/fixed-payments` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/createSaleOrderFixedPayment)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Create sale invoice line (POST /v1/sale-invoices/{id}/lines)
+    ### Create sale invoice line
 
-    Create new line in sale invoice
-
-    - Action id: `post_sale_invoices_id_lines` · write · Rivile ERP: `POST /v1/sale-invoices/{id}/lines`
+    - Action id: `post_sale_invoices_id_lines` · write · `POST /v1/sale-invoices/{id}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/create_1)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Post sale invoice (PATCH /v1/sale-invoices/{id}/post)
+    ### Post sale invoice
 
-    Post sale invoice
-
-    - Action id: `patch_sale_invoices_id_post` · write · Rivile ERP: `PATCH /v1/sale-invoices/{id}/post`
+    - Action id: `patch_sale_invoices_id_post` · write · `PATCH /v1/sale-invoices/{id}/post` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/post)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Reserve qty sale invoice (PATCH /v1/sale-invoices/{id}/reserve)
+    ### Reserve quantities for sale invoice
 
-    Reserve qty sale invoice
-
-    - Action id: `patch_sale_invoices_id_reserve` · write · Rivile ERP: `PATCH /v1/sale-invoices/{id}/reserve`
+    - Action id: `patch_sale_invoices_id_reserve` · write · `PATCH /v1/sale-invoices/{id}/reserve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/reserve)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Undo cancellation sale invoice (PATCH /v1/sale-invoices/{id}/undo-cancellation)
+    ### Undo cancellation of sale invoice
 
-    Undo cancellation sale invoice
-
-    - Action id: `patch_sale_invoices_id_undo_cancellation` · write · Rivile ERP: `PATCH /v1/sale-invoices/{id}/undo-cancellation`
+    - Action id: `patch_sale_invoices_id_undo_cancellation` · write · `PATCH /v1/sale-invoices/{id}/undo-cancellation` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/undoCancellation)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale invoices: UnPost sale invoice (PATCH /v1/sale-invoices/{id}/unpost)
+    ### Unpost sale invoice
 
-    UnPost sale invoice
-
-    - Action id: `patch_sale_invoices_id_unpost` · write · Rivile ERP: `PATCH /v1/sale-invoices/{id}/unpost`
+    - Action id: `patch_sale_invoices_id_unpost` · write · `PATCH /v1/sale-invoices/{id}/unpost` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/unpost)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale invoices: UnReserve qty sale invoice (PATCH /v1/sale-invoices/{id}/unreserve)
+    ### Unreserve quantities for sale invoice
 
-    UnReserve qty sale invoice
-
-    - Action id: `patch_sale_invoices_id_unreserve` · write · Rivile ERP: `PATCH /v1/sale-invoices/{id}/unreserve`
+    - Action id: `patch_sale_invoices_id_unreserve` · write · `PATCH /v1/sale-invoices/{id}/unreserve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/unreserve)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale invoices: Update workflow status (PATCH /v1/sale-invoices/{id}/workflow-status)
+    ### Update sale invoice workflow status
 
-    Update workflow status
-
-    - Action id: `patch_sale_invoices_id_workflow_status` · write · Rivile ERP: `PATCH /v1/sale-invoices/{id}/workflow-status`
+    - Action id: `patch_sale_invoices_id_workflow_status` · write · `PATCH /v1/sale-invoices/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-invoice-controller/changeWorkflowStatus_1)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_18
   type: markdown
   title: Sale orders
   body: |
-    ### Sale orders: Sale orders list (GET /v1/sale-orders)
+    ### List sale orders
 
-    Returns sale orders list. Fields available for filtering: id, createdAt, clientId, clientCode journalId, journalCode, customerAgreementId, customerAgreementCode, isSent, opDate, docDate, documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode
-
-    - Action id: `get_sale_orders` · read · Rivile ERP: `GET /v1/sale-orders`
+    - Action id: `get_sale_orders` · read · `GET /v1/sale-orders` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/list_2)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Sale orders: Create sale order (POST /v1/sale-orders)
+    ### Create sale order
 
-    Create new sale order
-
-    - Action id: `post_sale_orders` · write · Rivile ERP: `POST /v1/sale-orders`
+    - Action id: `post_sale_orders` · write · `POST /v1/sale-orders` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/createSaleOrder)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale orders: Delete sale order (DELETE /v1/sale-orders/{id})
+    ### Delete sale order
 
-    Delete sale order
-
-    - Action id: `delete_sale_orders_id` · write · Rivile ERP: `DELETE /v1/sale-orders/{id}`
+    - Action id: `delete_sale_orders_id` · write · `DELETE /v1/sale-orders/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/delete_1)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Get sale order (GET /v1/sale-orders/{id})
+    ### Get sale order
 
-    Returns full sale order by id.
-
-    - Action id: `get_sale_orders_id` · read · Rivile ERP: `GET /v1/sale-orders/{id}`
+    - Action id: `get_sale_orders_id` · read · `GET /v1/sale-orders/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/item_7)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale orders: Approve sale order (PATCH /v1/sale-orders/{id}/approve)
+    ### Approve sale order
 
-    Approve sale order
-
-    - Action id: `patch_sale_orders_id_approve` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/approve`
+    - Action id: `patch_sale_orders_id_approve` · write · `PATCH /v1/sale-orders/{id}/approve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/approveSaleOrder)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Cancel approve for sale order (PATCH /v1/sale-orders/{id}/cancel-approve)
+    ### Cancel approval of sale order
 
-    Cancel approve for sale order
-
-    - Action id: `patch_sale_orders_id_cancel_approve` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/cancel-approve`
+    - Action id: `patch_sale_orders_id_cancel_approve` · write · `PATCH /v1/sale-orders/{id}/cancel-approve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/cancelApproveSaleOrder)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Convert sale order to order (PATCH /v1/sale-orders/{id}/convertToOrder)
+    ### Convert sale order to order
 
-    Convert sale order to order
-
-    - Action id: `patch_sale_orders_id_convert_to_order` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/convertToOrder`
+    - Action id: `patch_sale_orders_id_convert_to_order` · write · `PATCH /v1/sale-orders/{id}/convertToOrder` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/convertSaleOrderToOrder)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Convert sale order to proforma invoice (PATCH /v1/sale-orders/{id}/convertToProformaInvoice)
+    ### Convert sale order to proforma invoice
 
-    Convert sale order to proforma invoice
-
-    - Action id: `patch_sale_orders_id_convert_to_proforma_invoice` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/convertToProformaInvoice`
+    - Action id: `patch_sale_orders_id_convert_to_proforma_invoice` · write · `PATCH /v1/sale-orders/{id}/convertToProformaInvoice` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/convertSaleOrderToProformaInvoice)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Convert sale order to quote (PATCH /v1/sale-orders/{id}/convertToQuote)
+    ### Convert sale order to quote
 
-    Convert sale order to quote
-
-    - Action id: `patch_sale_orders_id_convert_to_quote` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/convertToQuote`
+    - Action id: `patch_sale_orders_id_convert_to_quote` · write · `PATCH /v1/sale-orders/{id}/convertToQuote` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/convertSaleOrderToQuote)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Create sale order line (POST /v1/sale-orders/{id}/lines)
+    ### Create sale order line
 
-    Create new sale order line
-
-    - Action id: `post_sale_orders_id_lines` · write · Rivile ERP: `POST /v1/sale-orders/{id}/lines`
+    - Action id: `post_sale_orders_id_lines` · write · `POST /v1/sale-orders/{id}/lines` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/createSaleOrderLine)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Sale orders: Reserve sale order (PATCH /v1/sale-orders/{id}/reserve)
+    ### Reserve sale order
 
-    Reserve sale order
-
-    - Action id: `patch_sale_orders_id_reserve` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/reserve`
+    - Action id: `patch_sale_orders_id_reserve` · write · `PATCH /v1/sale-orders/{id}/reserve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/reserveSaleOrder)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Un-reserve sale order (PATCH /v1/sale-orders/{id}/unreserve)
+    ### Unreserve sale order
 
-    Un-reserve sale order
-
-    - Action id: `patch_sale_orders_id_unreserve` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/unreserve`
+    - Action id: `patch_sale_orders_id_unreserve` · write · `PATCH /v1/sale-orders/{id}/unreserve` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/unReserveSaleOrder)
     - Inputs: `id`
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Sale orders: Update workflow status (PATCH /v1/sale-orders/{id}/workflow-status)
+    ### Update sale order workflow status
 
-    Update workflow status
-
-    - Action id: `patch_sale_orders_id_workflow_status` · write · Rivile ERP: `PATCH /v1/sale-orders/{id}/workflow-status`
+    - Action id: `patch_sale_orders_id_workflow_status` · write · `PATCH /v1/sale-orders/{id}/workflow-status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-order-controller/changeWorkflowStatus)
     - Inputs: `id`, `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_19
   type: markdown
   title: Sale prices
   body: |
-    ### Sale prices: Sale Prices (GET /v1/sale-prices)
+    ### List sale prices
 
-    Returns sale price list. Fields available for filtering: id, validFrom, validTo, productId, productCode, departmentId, departmentCode, currencyId, currencyCode, priceCategoryId, priceCategoryCode, updatedAt
-
-    - Action id: `get_sale_prices` · read · Rivile ERP: `GET /v1/sale-prices`
+    - Action id: `get_sale_prices` · read · `GET /v1/sale-prices` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-price-controller/list_16)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Sale prices: Get sale price (GET /v1/sale-prices/{id})
+    ### Get sale price
 
-    Returns full sale price by id.
-
-    - Action id: `get_sale_prices_id` · read · Rivile ERP: `GET /v1/sale-prices/{id}`
+    - Action id: `get_sale_prices_id` · read · `GET /v1/sale-prices/{id}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/sale-price-controller/item_6)
     - Inputs: `id`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_20
   type: markdown
   title: Service status
   body: |
-    ### Service status:  (GET /health/status)
+    ### Check the service status
 
-    - Action id: `get_health_status` · read · Rivile ERP: `GET /health/status`
+    - Action id: `get_health_status` · read · `GET /health/status` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/status-controller/index)
     - Inputs: none
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 
-    ### Service status: Validate API key (GET /v1/users/api-keys)
+    ### Check the API key
 
-    Check if call with API key is successful
-
-    - Action id: `get_users_api_keys` · read · Rivile ERP: `GET /v1/users/api-keys`
+    - Action id: `get_users_api_keys` · read · `GET /v1/users/api-keys` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/status-controller/validate)
     - Inputs: none
     - Results: `endpoint`, `value`, `http_status`, `duration_ms`
 - component_id: advanced_group_21
   type: markdown
   title: Timesheet schedules
   body: |
-    ### Timesheet schedules: Timesheet schedules (GET /v1/timesheet-schedules)
+    ### List timesheet schedules
 
-    Returns timesheet schedule list. Fields available for filtering: id, active, code, createdAt, updatedAt
-
-    - Action id: `get_timesheet_schedules` · read · Rivile ERP: `GET /v1/timesheet-schedules`
+    - Action id: `get_timesheet_schedules` · read · `GET /v1/timesheet-schedules` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/timesheet-schedule-controller/list_1)
     - Inputs: `filters` (optional), `page` (optional), `size` (optional), `fetch_all_pages` (optional), `max_pages` (optional)
     - Results: `endpoint`, `records`, `record`, `count`, `total_elements`, `total_pages`, `page_number`, `next_page`, `pages_fetched`, `has_more`, `http_status`, `duration_ms`
 
-    ### Timesheet schedules: Fill timesheet schedule (POST /v1/timesheet-schedules)
+    ### Fill timesheet schedule
 
-    Fill timesheet schedule
-
-    - Action id: `post_timesheet_schedules` · write · Rivile ERP: `POST /v1/timesheet-schedules`
+    - Action id: `post_timesheet_schedules` · write · `POST /v1/timesheet-schedules` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/timesheet-schedule-controller/fillTimesheetSchedule)
     - Inputs: `body`
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 
-    ### Timesheet schedules: Timesheet schedules days list (GET /v1/timesheet-schedules/{id}/days)
+    ### List the days of a timesheet schedule
 
-    Returns Timesheet schedules days.
-
-    - Action id: `get_timesheet_schedules_id_days` · read · Rivile ERP: `GET /v1/timesheet-schedules/{id}/days`
+    - Action id: `get_timesheet_schedules_id_days` · read · `GET /v1/timesheet-schedules/{id}/days` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/timesheet-schedule-controller/listDays)
     - Inputs: `id`, `date_from`, `date_to`
     - Results: `endpoint`, `records`, `http_status`, `duration_ms`
 - component_id: advanced_group_22
   type: markdown
   title: Timesheets
   body: |
-    ### Timesheets: Timesheet list (GET /v1/timesheets)
+    ### List timesheets
 
-    Returns timesheet list
-
-    - Action id: `get_timesheets` · read · Rivile ERP: `GET /v1/timesheets`
+    - Action id: `get_timesheets` · read · `GET /v1/timesheets` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/timesheet-controller/list)
     - Inputs: `calendar_period_code`, `employee_agreement_code` (optional), `employee_code` (optional), `employee_position_code` (optional), `department_code` (optional)
     - Results: `endpoint`, `records`, `http_status`, `duration_ms`
 
-    ### Timesheets: Create timesheet events (POST /v1/timesheets)
+    ### Create timesheet events
 
-    Create timesheet events
-
-    - Action id: `post_timesheets` · write · Rivile ERP: `POST /v1/timesheets`
+    - Action id: `post_timesheets` · write · `POST /v1/timesheets` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/timesheet-controller/createTimesheetEvents)
     - Inputs: `body` (optional)
     - Results: `endpoint`, `record`, `http_status`, `duration_ms`
 - component_id: advanced_group_23
   type: markdown
   title: Workflow statuses
   body: |
-    ### Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId})
+    ### List workflow statuses of a record type
 
-    Returns Workflow statuses
-
-    - Action id: `get_workflow_statuses_entity_type_id` · read · Rivile ERP: `GET /v1/workflow-statuses/{entityTypeId}`
+    - Action id: `get_workflow_statuses_entity_type_id` · read · `GET /v1/workflow-statuses/{entityTypeId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/workflow-controller/listByPath)
     - Inputs: `entity_type_id`
     - Results: `endpoint`, `records`, `http_status`, `duration_ms`
 
-    ### Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId}/{companyId})
+    ### List workflow statuses of a record type for a company
 
-    Returns Workflow statuses
-
-    - Action id: `get_workflow_statuses_entity_type_id_company_id` · read · Rivile ERP: `GET /v1/workflow-statuses/{entityTypeId}/{companyId}`
+    - Action id: `get_workflow_statuses_entity_type_id_company_id` · read · `GET /v1/workflow-statuses/{entityTypeId}/{companyId}` · [API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html#/workflow-controller/listByHeader)
     - Inputs: `company_id`, `entity_type_id`
     - Results: `endpoint`, `records`, `http_status`, `duration_ms`
 - component_id: advanced_any_endpoint
@@ -1312,7 +1049,7 @@ components:
 
     Sends one request to any Rivile ERP Public API path under /v1. Treated as a write whatever the method: suppressed in test runs and recorded in the external-effect ledger.
 
-    - Action id: `call_endpoint` · write · Rivile ERP: any path under `/v1`
+    - Action id: `call_endpoint` · write · any path under `/v1`
     - Inputs: `method`, `path`, `query` (optional), `body` (optional)
     - Results: `endpoint`, `response`, `http_status`, `duration_ms`
 
@@ -1320,14 +1057,14 @@ components:
 
     Reads a Rivile ERP list page by page (100 records per page) and saves every record as one JSON line in a workflow file (rivile-erp-export.jsonl).
 
-    - Action id: `export_list` · read · Rivile ERP: any path under `/v1`
+    - Action id: `export_list` · read · any path under `/v1`
     - Inputs: `list`, `filters` (optional), `max_pages` (optional), `start_page` (optional)
     - Results: `artifact_handle`, `filename`, `content_type`, `record_count`, `pages_fetched`, `complete`, `resume_page`, `total_elements`
 - component_id: advanced_coverage
   type: markdown
   title: Coverage
   body: |
-    - **Covered:** all 136 endpoints of the Rivile ERP Public API (43 read, 93 write), each as its own step, generated from Rivile's OpenAPI document (pinned by its SHA-256).
+    - **Covered:** all 136 endpoints of the Rivile ERP Public API (43 read, 93 write), each as its own step, generated from Rivile's OpenAPI document.
     - **Inputs:** every path id and query parameter is its own input; every request body is one `body` input typed with Rivile's schema; list filters accept only the fields Rivile documents for that list.
     - **Newer than this release:** **Call any Rivile ERP endpoint** sends any path under `/v1` (always treated as a write).
     - **Not offered by the Rivile ERP API: attaching files.** The API has no upload; files can only be downloaded.

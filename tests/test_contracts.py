@@ -273,3 +273,58 @@ def test_icon_is_present() -> None:
     icon = (BUNDLE_ROOT / "icon.png").read_bytes()
     assert icon.startswith(b"\x89PNG\r\n\x1a\n")
     assert len(icon) <= 100 * 1024
+
+
+def test_help_texts_are_sentences(built) -> None:
+    for form in built["forms"]:
+        for field in form["fields"]:
+            help_text = field.get("help_text", "")
+            assert len(help_text.split()) >= 4, (form["operation_id"], field["name"], help_text)
+
+
+def test_notes_are_multiline(built) -> None:
+    for form in built["forms"]:
+        for field in form["fields"]:
+            if field["name"] in {"notes", "purpose", "description"}:
+                assert field["widget_type"] == "textarea", (form["operation_id"], field["name"])
+
+
+def test_coded_options_have_words(built) -> None:
+    forms = {form["operation_id"]: form for form in built["forms"]}
+    for oid, name in (
+        ("find_or_create_client", "client_type"),
+        ("find_or_create_product", "product_type"),
+        ("register_payment", "direction"),
+        ("register_payment", "invoice_type"),
+        ("changes_since", "entity"),
+        ("download_document_file", "document_type"),
+        ("export_list", "list"),
+    ):
+        field = next(f for f in forms[oid]["fields"] if f["name"] == name)
+        for option in field["options"]:
+            assert option["label"] != str(option["value"]), (oid, name, option)
+
+
+def test_advanced_titles_are_plain_and_unique(built) -> None:
+    names = [op["display_name"] for op in built["operations"]]
+    assert len(names) == len(set(names))
+    for name in names:
+        title = name.removeprefix("Advanced · ")
+        assert "/v1" not in title and " (GET" not in title, name
+        head, _, rest = title.partition(": ")
+        assert head.lower() != rest.lower(), name
+        assert "UnPost" not in title and " qty " not in title, name
+
+
+def test_every_endpoint_section_links_to_the_reference(built) -> None:
+    bodies = "\n".join(c["body"] for c in built["api_page"]["components"])
+    for row in built["rows"]:
+        link = f"#/{row['tag']}/{row['openapi_operation_id']}"
+        assert link in bodies, row["operation_id"]
+        assert bodies.count(f"`{row['http_method']} {row['path']}`") >= 1
+
+
+def test_every_path_id_is_a_uuid() -> None:
+    for endpoint in catalog.ENDPOINTS_BY_OPERATION.values():
+        for _name, _wire, fmt in endpoint.path_params:
+            assert fmt == "uuid", endpoint.wire

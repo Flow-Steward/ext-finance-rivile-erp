@@ -182,6 +182,94 @@ def operation_id_for(method: str, path: str) -> str:
     return "_".join([method.lower(), *words])
 
 
+#: Rivile's list summaries are nouns ("Clients", "Deliveries list"): say what the step does.
+LIST_TITLES = {
+    "/health/status": "Check the service status",
+    "/v1/clients": "List clients",
+    "/v1/contacts": "List contacts",
+    "/v1/deliveries": "List deliveries",
+    "/v1/employees": "List employees with their agreements",
+    "/v1/gift-cards": "List gift cards",
+    "/v1/inventory-adjustments": "List inventory adjustments",
+    "/v1/inventory-movements": "List inventory movements",
+    "/v1/inventory-stocks": "List inventory stock",
+    "/v1/lots": "List lots",
+    "/v1/manufactures": "List manufactures",
+    "/v1/payments": "List payments",
+    "/v1/pr-registries": "List receivables and payables",
+    "/v1/products": "List products",
+    "/v1/purchase-invoices": "List purchase invoices",
+    "/v1/purchase-orders": "List purchase orders",
+    "/v1/sale-invoices": "List sale invoices",
+    "/v1/sale-orders": "List sale orders",
+    "/v1/sale-prices": "List sale prices",
+    "/v1/timesheet-schedules": "List timesheet schedules",
+    "/v1/timesheet-schedules/{id}/days": "List the days of a timesheet schedule",
+    "/v1/timesheets": "List timesheets",
+    "/v1/users/api-keys": "Check the API key",
+    "/v1/workflow-statuses/{entityTypeId}": "List workflow statuses of a record type",
+    "/v1/workflow-statuses/{entityTypeId}/{companyId}": (
+        "List workflow statuses of a record type for a company"
+    ),
+}
+#: The record each group's generic "Update workflow status" applies to.
+GROUP_RECORD = {
+    "Clients": "client",
+    "Inventory movements": "inventory movement",
+    "Manufacturing": "manufacture",
+    "Payments": "payment",
+    "Products": "product",
+    "Purchase invoices": "purchase invoice",
+    "Purchase orders": "purchase order",
+    "Sale invoices": "sale invoice",
+    "Sale orders": "sale order",
+}
+_TITLE_FIXES = (
+    ("UnPost ", "Unpost "),
+    ("UnReserve qty ", "Unreserve quantities for "),
+    ("Reserve qty ", "Reserve quantities for "),
+    ("Un-reserve ", "Unreserve "),
+    ("Undo cancellation ", "Undo cancellation of "),
+    ("Cancel approve for ", "Cancel approval of "),
+    ("Cancel approve ", "Cancel approval of "),
+)
+#: Notes Rivile's document adds beyond the title.
+ENDPOINT_NOTES = {
+    "PATCH /v1/gift-cards/{id}/activate": "An activationDate may be given in the body.",
+    "PATCH /v1/payments/{id}/link-payment": "Links the payment to a sale or purchase invoice or order.",
+}
+
+
+def endpoint_title(row: dict[str, Any]) -> str:
+    """A plain, unique step title: what it does, never repeating the group or the path."""
+    path, summary = row["path"], row["summary"]
+    if row["http_method"] == "GET" and path in LIST_TITLES:
+        return LIST_TITLES[path]
+    if summary == "Update workflow status":
+        return f"Update {GROUP_RECORD[row['group']]} workflow status"
+    for old, new in _TITLE_FIXES:
+        summary = summary.replace(old, new)
+    return summary[:1].upper() + summary[1:]
+
+
+def endpoint_description(row: dict[str, Any]) -> str:
+    wire = f"{row['http_method']} {row['path']}"
+    parts = [endpoint_title(row) + "."]
+    if wire in ENDPOINT_NOTES:
+        parts.append(ENDPOINT_NOTES[wire])
+    if row["paged"]:
+        parts.append(
+            "Up to 100 records per page; filters accept the fields Rivile documents for this list."
+        )
+    parts.append(f"Rivile ERP: {wire}.")
+    return " ".join(parts)
+
+
+def swagger_link(row: dict[str, Any]) -> str:
+    """Swagger UI deep link (deepLinking is on): #/<tag>/<operationId>."""
+    return f"{SWAGGER_URL}#/{row['tag']}/{row['openapi_operation_id']}"
+
+
 def ref_name(schema: dict[str, Any]) -> str:
     return str(schema.get("$ref", "")).rsplit("/", 1)[-1]
 
@@ -288,9 +376,10 @@ def endpoint_rows(spec: dict[str, Any] | None = None) -> list[dict[str, Any]]:
                 {
                     "operation_id": operation_id_for(method, path),
                     "openapi_operation_id": op.get("operationId", ""),
+                    "tag": tag,
                     "http_method": method.upper(),
                     "path": path,
-                    "summary": clean(op.get("summary"), 120),
+                    "summary": clean(op.get("summary") or "", 120),
                     "description": clean(op.get("description"), 600),
                     "group": GROUP_TITLES.get(tag, tag),
                     "write": method != "get",
@@ -324,6 +413,13 @@ def _value_type(schema: dict[str, Any]) -> str:
     return {"integer": "integer", "number": "number", "boolean": "boolean"}.get(kind, "text")
 
 
+def _path_help(name: str, is_uuid: bool) -> str:
+    base = snake(name).removesuffix("_id").replace("_", " ") or "record"
+    base = "record" if base == "id" else base
+    kind = "id (a UUID)" if is_uuid else "code"
+    return f"The {base}'s {kind}, as Rivile ERP returns it in its id field."
+
+
 def path_input(param: dict[str, Any]) -> dict[str, Any]:
     schema = param.get("schema") or {}
     is_uuid = schema.get("format") == "uuid"
@@ -331,8 +427,7 @@ def path_input(param: dict[str, Any]) -> dict[str, Any]:
         "type": "integer" if schema.get("type") == "integer" else "string",
         "title": snake(param["name"]).replace("_", " ").capitalize(),
         "description": clean(
-            param.get("description")
-            or ("The record's id (a UUID, as returned in id)." if is_uuid else param["name"]),
+            param.get("description") or _path_help(param["name"], is_uuid),
             300,
         ),
     }
@@ -342,7 +437,7 @@ def path_input(param: dict[str, Any]) -> dict[str, Any]:
         entry["pattern"] = (
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
             if is_uuid
-            else "^[A-Za-z0-9_.-]{1,64}$"
+            else "^[A-Za-z0-9_-]{1,64}$"
         )
     return {
         "name": snake(param["name"]),
@@ -352,11 +447,26 @@ def path_input(param: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: Sentences for the query parameters (the document gives only their names).
+QUERY_HELP = {
+    "calendarPeriodCode": "The calendar period whose timesheets to read.",
+    "employeeAgreementCode": "Only timesheets of this employment agreement.",
+    "employeeCode": "Only timesheets of this employee.",
+    "employeePositionCode": "Only timesheets of this position.",
+    "departmentCode": "Only timesheets of employees in this department.",
+    "dateFrom": "The first day to read, YYYY-MM-DD.",
+    "dateTo": "The last day to read, YYYY-MM-DD.",
+}
+
+
 def query_input(spec: dict[str, Any], param: dict[str, Any]) -> dict[str, Any]:
     schema = convert_schema(spec, param.get("schema") or {}, 0)
     schema.pop("additionalProperties", None)
     schema["title"] = snake(param["name"]).replace("_", " ").capitalize()
-    schema["description"] = clean(param.get("description") or param["name"], 300)
+    schema["description"] = QUERY_HELP.get(param["name"]) or clean(
+        f"The {param.get('description') or snake(param['name']).replace('_', ' ')} to filter by.",
+        300,
+    )
     if schema.get("type") == "string" and "maxLength" not in schema and "enum" not in schema:
         schema["maxLength"] = 200
     return {
@@ -638,15 +748,10 @@ def endpoint_operation(spec: dict[str, Any], row: dict[str, Any]) -> dict[str, A
     if len(names) != len(set(names)):
         raise SystemExit(f"duplicate input names for {row['operation_id']}: {names}")
     outputs = endpoint_outputs(spec, row)
-    wire = f"{row['http_method']} {row['path']}"
-    text = (row["description"] or row["summary"]).rstrip()
-    if not text.endswith("."):
-        text += "."
-    description = f"{text} Rivile ERP: {wire}."
     op: dict[str, Any] = {
         "operation_id": row["operation_id"],
-        "display_name": f"{ADVANCED_PREFIX}{row['group']}: {row['summary']} ({wire})",
-        "description": clean(description, 1000),
+        "display_name": f"{ADVANCED_PREFIX}{endpoint_title(row)}",
+        "description": clean(endpoint_description(row), 1000),
         "operation_kind": "action" if row["write"] else "source",
         "category": CATEGORY,
         "connection_type_ids": [CONNECTION_TYPE_ID],
@@ -700,6 +805,7 @@ def call_endpoint_operation() -> dict[str, Any]:
                 "type": "string",
                 "enum": ["GET", "POST", "PATCH", "PUT", "DELETE"],
                 "title": "HTTP method",
+                "description": "The HTTP method of the endpoint, as in the API reference.",
             },
         },
         {
@@ -733,7 +839,7 @@ def call_endpoint_operation() -> dict[str, Any]:
             "name": "body",
             "value_type": "json",
             "required": False,
-            "schema": {"title": "Body", "description": "The JSON body, sent unchanged."},
+            "schema": {"title": "Body", "description": "The JSON request body, sent unchanged."},
         },
     ]
     outputs = [
@@ -896,12 +1002,21 @@ def friendly_operation(spec: dict[str, Any]) -> dict[str, Any]:
     return op
 
 
+def option_labels(rows: list[dict[str, Any]]) -> dict[str, dict[Any, str]]:
+    labels = dict(friendly_contracts.OPTION_LABELS)
+    labels["list"] = {r["path"]: f"{r['group']} ({r['path']})" for r in rows if r["paged"]}
+    return labels
+
+
 def build_operations(spec: dict[str, Any], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     paged = [r["path"] for r in rows if r["paged"]]
     ops = [test_connection_operation()]
     ops += [friendly_operation(item) for item in friendly_contracts.operations()]
     ops += [endpoint_operation(spec, r) for r in rows]
     ops += [call_endpoint_operation(), export_list_operation(paged)]
+    names = [op["display_name"] for op in ops]
+    if len(names) != len(set(names)):
+        raise SystemExit(f"duplicate step titles: {sorted(n for n in names if names.count(n) > 1)}")
     return ops
 
 
@@ -951,10 +1066,15 @@ def action_for(op: dict[str, Any]) -> dict[str, Any]:
 FILE_FIELD_HELP = "A workflow file, e.g. the invoice PDF from an earlier step, up to 15 MB."
 
 
+TEXTAREA_INPUTS = {"notes", "purpose", "description"}
+
+
 def widget_for(item: dict[str, Any]) -> str:
     schema = item.get("schema") or {}
     if schema.get("enum"):
         return "select"
+    if item["name"] in TEXTAREA_INPUTS and item["value_type"] == "text":
+        return "textarea"
     vt = item["value_type"]
     if vt in {"object", "array", "json"}:
         return "json"
@@ -965,7 +1085,8 @@ def widget_for(item: dict[str, Any]) -> str:
     return "text"
 
 
-def form_for(op: dict[str, Any]) -> dict[str, Any]:
+def form_for(op: dict[str, Any], labels: dict[str, dict[Any, str]] | None = None) -> dict[str, Any]:
+    labels = labels or {}
     fields = []
     for item in op["inputs"]:
         if item["value_type"] == "connection_ref":
@@ -991,7 +1112,8 @@ def form_for(op: dict[str, Any]) -> dict[str, Any]:
         if schema.get("description"):
             field["help_text"] = clean(schema["description"], 400)
         if schema.get("enum"):
-            field["options"] = [{"label": str(v), "value": v} for v in schema["enum"]]
+            words = labels.get(item["name"], {})
+            field["options"] = [{"label": words.get(v, str(v)), "value": v} for v in schema["enum"]]
         fields.append(field)
     return {"operation_id": op["operation_id"], "title": op["display_name"], "fields": fields}
 
@@ -1095,9 +1217,21 @@ def runtime_registry(rows: list[dict[str, Any]]) -> str:
         "ENDPOINTS: tuple[Endpoint, ...] = (",
     ]
     for r in rows:
-        path_params = tuple((snake(p["name"]), p["name"]) for p in r["path_params"])
+        path_params = tuple(
+            (
+                snake(p["name"]),
+                p["name"],
+                "uuid" if (p.get("schema") or {}).get("format") == "uuid" else "code",
+            )
+            for p in r["path_params"]
+        )
         query_params = tuple(
-            (snake(p["name"]), p["name"], _value_type(p.get("schema") or {}))
+            (
+                snake(p["name"]),
+                p["name"],
+                _value_type(p.get("schema") or {}),
+                bool(p.get("required")),
+            )
             for p in r["query_params"]
         )
         lines.append(
@@ -1144,7 +1278,7 @@ def outputs() -> dict[str, Any]:
         "rows": rows,
         "operations": ops,
         "actions": [action_for(op) for op in ops],
-        "forms": [form_for(op) for op in ops],
+        "forms": [form_for(op, option_labels(rows)) for op in ops],
         "artifact_policies": artifact_policies(rows),
         "effects": external_effects(ops),
         "registry": runtime_registry(rows),

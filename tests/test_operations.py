@@ -285,3 +285,114 @@ def test_query_parameters_are_typed(make_factory) -> None:
     )
     assert response["ok"] is True, response
     assert opener.requests[0]["query"] == {"dateFrom": "2026-01-01", "dateTo": "2026-01-31"}
+
+
+def test_a_long_multi_page_read_ends_at_a_page_boundary(make_factory) -> None:
+    wide = {f"field{i}": f"value-{i}" for i in range(19)}
+    pages = [
+        (200, page(*[dict(wide, id=f"{p}-{n}") for n in range(15)], total_pages=60))
+        for p in range(60)
+    ]
+    opener = FakeOpener(*pages)
+    response, _f, _s = run(
+        make_factory, opener, "get_products", {"fetch_all_pages": True, "max_pages": 60, "size": 15}
+    )
+    assert response["ok"] is True, response["error"]
+    result = response["result"]
+    assert result["has_more"] is True
+    assert result["count"] == result["pages_fetched"] * 15
+    assert result["next_page"] == result["pages_fetched"]
+    assert result["page_number"] == result["pages_fetched"] - 1
+
+
+def test_fit_pages_drops_whole_trailing_pages() -> None:
+    read = {
+        "records": [{"v": "x" * 1000} for _ in range(30)],
+        "page_sizes": [10, 10, 10],
+        "pages_fetched": 3,
+        "page_number": 2,
+        "next_page": None,
+        "has_more": False,
+    }
+    calls = []
+
+    def build(done):
+        calls.append(len(done["records"]))
+        return {
+            "records": done["records"],
+            "pad": "y" * (4_000_000 if len(done["records"]) > 10 else 0),
+        }
+
+    result = operations.fit_pages(read, build)
+    assert calls == [30, 20, 10]
+    assert len(result["records"]) == 10
+    assert read["has_more"] is True and read["next_page"] == 1
+
+
+def test_path_ids_must_be_uuids(make_factory) -> None:
+    opener = FakeOpener()
+    for value in ("..", ".", "abc", f"{UUID_A}/..", "%2e%2e"):
+        response, _f, _s = run(
+            make_factory,
+            opener,
+            "delete_deliveries_delivery_id_lines_line_id",
+            {"delivery_id": UUID_A, "line_id": value},
+        )
+        assert response["error_code"] == "invalid_payload", value
+    assert opener.requests == []
+
+
+def test_call_endpoint_refuses_dot_segments(make_factory) -> None:
+    for path in ("/v1/./clients", "/v1/clients/.", "/v1/a/../b", "/v1/clients/"):
+        response, _f, _s = run(
+            make_factory, FakeOpener(), "call_endpoint", {"method": "DELETE", "path": path}
+        )
+        assert response["error_code"] == "invalid_payload", path
+
+
+def test_a_redirect_on_a_write_is_an_unknown_outcome(make_factory) -> None:
+    opener = FakeOpener((302, "", {"Location": "https://elsewhere.example/"}))
+    response, _f, _s = run(make_factory, opener, "post_lots", {"body": {"code": "L1"}})
+    assert response["error_code"] == "redirect_rejected"
+    assert response["external_effect_status"] == "timeout_unknown"
+    assert response["definitely_no_external_effect"] is False
+
+
+def test_an_unreadable_answer_to_a_write_says_it_was_accepted(make_factory) -> None:
+    opener = FakeOpener((201, "<html>not json</html>", {"Content-Type": "text/html"}))
+    response, _f, _s = run(make_factory, opener, "post_lots", {"body": {"code": "L1"}})
+    assert response["error_code"] == "timeout_unknown"
+    assert "accepted the request (HTTP 201)" in response["error"]
+    assert response["definitely_no_external_effect"] is False
+
+
+def test_required_query_parameters_are_enforced(make_factory) -> None:
+    opener = FakeOpener()
+    response, _f, _s = run(make_factory, opener, "get_timesheets", {"employee_code": "E1"})
+    assert response["error_code"] == "invalid_payload"
+    assert "calendar_period_code" in response["error"]
+    response, _f, _s = run(
+        make_factory,
+        opener,
+        "get_timesheet_schedules_id_days",
+        {"id": UUID_A, "date_from": "2026-01-01"},
+    )
+    assert response["error_code"] == "invalid_payload"
+    assert opener.requests == []
+
+
+def test_error_fields_are_read_case_insensitively(make_factory) -> None:
+    body = {"Code": "error.x", "Values": {"Violations": {"name": "Required"}}}
+    response, _f, _s = run(make_factory, FakeOpener((400, body)), "post_lots", {"body": {}})
+    assert response["errors"][1]["rivile_path"] == "name"
+    assert "error.x" in response["error"]
+
+
+def test_a_key_in_a_long_error_body_is_redacted_before_it_is_cut(make_factory) -> None:
+    from runtime.transport import MAX_ERROR_BODY_BYTES
+
+    padding = "x" * (MAX_ERROR_BODY_BYTES - 10)
+    opener = FakeOpener((400, padding + API_KEY + "tail"))
+    response, _f, _s = run(make_factory, opener, "get_clients_id", {"id": UUID_A})
+    text = json.dumps(response)
+    assert API_KEY[:10] not in text

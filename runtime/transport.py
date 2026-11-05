@@ -33,6 +33,7 @@ from flowsteward_extension_sdk import PinnedPeerError, open_pinned_url, parse_re
 from . import errors
 from .connection import BASE_URL, Connection
 from .errors import ExtensionError
+from .fields import field
 
 #: Rivile answers or gives up within 5 minutes; a little more is allowed for the network.
 DEFAULT_TIMEOUT_SECONDS = 310.0
@@ -169,8 +170,8 @@ class RivileTransport:
             if mutating:
                 raise ExtensionError(
                     errors.TIMEOUT_UNKNOWN,
-                    "Rivile ERP's answer to the write could not be read; check the record in "
-                    "Rivile ERP",
+                    f"Rivile ERP accepted the request (HTTP {status}) but the answer could not "
+                    "be read; check in Rivile ERP whether it was applied",
                     failure_class="provider",
                     retryable=False,
                     definitely_no_external_effect=False,
@@ -205,7 +206,7 @@ class RivileTransport:
             ) as response:
                 status = int(getattr(response, "status", 0) or getattr(response, "code", 0) or 0)
                 headers = getattr(response, "headers", None)
-                raw = read_bounded(response, MAX_RESPONSE_BYTES, mutating=mutating)
+                raw = read_bounded(response, MAX_RESPONSE_BYTES, mutating=mutating, status=status)
         except HTTPError as exc:
             raise _http_error(exc, self._connection, mutating=mutating) from exc
         except PinnedPeerError as exc:
@@ -246,12 +247,16 @@ class RivileTransport:
             )
         if status >= 400:
             raise _status_error(
-                status, raw[:MAX_ERROR_BODY_BYTES], headers, self._connection, mutating=mutating
+                status,
+                _redact_bytes(raw, self._connection)[:MAX_ERROR_BODY_BYTES],
+                headers,
+                self._connection,
+                mutating=mutating,
             )
         return status, raw, headers
 
 
-def read_bounded(response: Any, limit: int, *, mutating: bool = False) -> bytes:
+def read_bounded(response: Any, limit: int, *, mutating: bool = False, status: int = 0) -> bytes:
     """Read at most ``limit`` bytes; an oversized answer to a write is an unknown outcome."""
     buffer = bytearray()
     while True:
@@ -263,8 +268,8 @@ def read_bounded(response: Any, limit: int, *, mutating: bool = False) -> bytes:
             raise ExtensionError(
                 errors.TIMEOUT_UNKNOWN if mutating else errors.RESPONSE_TOO_LARGE,
                 (
-                    "Rivile ERP's answer to the write was too large to read; check in Rivile ERP "
-                    "whether it was applied"
+                    f"Rivile ERP accepted the request (HTTP {status}) but the answer was too "
+                    "large to read; check in Rivile ERP whether it was applied"
                     if mutating
                     else "The Rivile ERP response exceeds its safe limit; narrow it with filters"
                 ),
@@ -298,9 +303,12 @@ def _redact_bytes(raw: bytes, connection: Connection) -> bytes:
 
 def _http_error(exc: HTTPError, connection: Connection, *, mutating: bool) -> ExtensionError:
     try:
-        raw = exc.read(MAX_ERROR_BODY_BYTES)
+        # Read past the limit by more than a key's length, redact, then cut: a key
+        # straddling the cut is removed whole instead of leaving a fragment.
+        raw = exc.read(MAX_ERROR_BODY_BYTES + 4096)
     except Exception:  # pragma: no cover - upstream body is optional
         raw = b""
+    raw = _redact_bytes(raw, connection)[:MAX_ERROR_BODY_BYTES]
     return _status_error(int(exc.code), raw, exc.headers, connection, mutating=mutating)
 
 
@@ -318,11 +326,11 @@ def parse_error_body(raw: bytes) -> tuple[str, list[dict[str, str]]]:
         return errors.safe_text(raw.decode("utf-8", "replace"), 300), []
     if not isinstance(body, Mapping):
         return errors.safe_text(body, 300), []
-    code = errors.safe_text(body.get("code"), 120)
-    values = body.get("values")
+    code = errors.safe_text(field(body, "code"), 120)
+    values = field(body, "values")
     entries: list[dict[str, str]] = []
     if isinstance(values, Mapping):
-        violations = values.get("violations")
+        violations = field(values, "violations")
         if isinstance(violations, Mapping):
             for path, text in list(violations.items())[:100]:
                 entries.append(
@@ -336,13 +344,13 @@ def parse_error_body(raw: bytes) -> tuple[str, list[dict[str, str]]]:
             for item in violations[:100]:
                 entries.append({"path": "", "message": errors.safe_text(item, 300), "code": code})
         for key in ("message", "error", "detail"):
-            if not entries and isinstance(values.get(key), str):
+            if not entries and isinstance(field(values, key), str):
                 entries.append(
-                    {"path": "", "message": errors.safe_text(values[key], 300), "code": code}
+                    {"path": "", "message": errors.safe_text(field(values, key), 300), "code": code}
                 )
     for key in ("message", "error", "detail"):
-        if not code and isinstance(body.get(key), str):
-            code = errors.safe_text(body[key], 300)
+        if not code and isinstance(field(body, key), str):
+            code = errors.safe_text(field(body, key), 300)
     return code, entries
 
 

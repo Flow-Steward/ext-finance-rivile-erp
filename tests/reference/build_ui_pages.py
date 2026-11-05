@@ -32,7 +32,6 @@ FRIENDLY_ENDPOINTS: dict[str, tuple[str, ...]] = {
         "POST /v1/clients",
         "GET /v1/sale-invoices",
         "POST /v1/sale-invoices",
-        "POST /v1/sale-invoices/{id}/lines",
         "PATCH /v1/sale-invoices/{id}/post",
     ),
     "create_purchase_invoice": (
@@ -40,10 +39,9 @@ FRIENDLY_ENDPOINTS: dict[str, tuple[str, ...]] = {
         "POST /v1/clients",
         "GET /v1/purchase-invoices",
         "POST /v1/purchase-invoices",
-        "POST /v1/purchase-invoices/{id}/lines",
         "PATCH /v1/purchase-invoices/{id}/post",
     ),
-    "download_document_file": ("GET /v1/files/{id}/content", "GET of the document"),
+    "download_document_file": ("the document's own read by id", "GET /v1/files/{id}/content"),
     "register_payment": (
         "POST /v1/payments",
         "PATCH /v1/payments/{id}/link-payment",
@@ -52,7 +50,7 @@ FRIENDLY_ENDPOINTS: dict[str, tuple[str, ...]] = {
     "find_or_create_product": ("GET /v1/products", "POST /v1/products"),
     "stock_levels": ("GET /v1/inventory-stocks",),
     "product_prices": ("GET /v1/sale-prices",),
-    "changes_since": ("GET of the chosen list",),
+    "changes_since": ("the chosen list, filtered on updatedAt",),
     "client_debt": ("GET /v1/pr-registries",),
 }
 
@@ -84,7 +82,6 @@ BEHAVIOUR = """\
 - **Timeout, 5xx or a lost connection on a write:** Rivile may have saved it, and Rivile ERP has no idempotency key. The step fails as `timeout_unknown` and is not retried; check the record in Rivile ERP first.
 - Rivile stops a request after 5 minutes. Request bodies are limited to 5 MB.
 - If a step that writes several things fails half-way, it says exactly what was already created and is not retried.
-- Rivile ERP bills API use per request, according to a third-party source (not documented officially); a step that reads many pages sends many requests.
 """
 
 
@@ -132,6 +129,11 @@ def _plain_title(op: dict[str, Any]) -> str:
     return str(op["display_name"]).removeprefix(ADVANCED_PREFIX)
 
 
+def _call(text: str) -> str:
+    """An endpoint as code; a plain description as text."""
+    return f"`{text}`" if text.split(" ", 1)[0] in {"GET", "POST", "PATCH", "DELETE"} else text
+
+
 def _everyday_section(op: dict[str, Any]) -> list[str]:
     endpoints = FRIENDLY_ENDPOINTS[op["operation_id"]]
     return [
@@ -141,7 +143,7 @@ def _everyday_section(op: dict[str, Any]) -> list[str]:
         "",
         f"- Action id: `{op['operation_id']}`",
         f"- Kind: {_kind(op)}",
-        f"- Rivile ERP calls: {', '.join(f'`{e}`' for e in endpoints)}",
+        f"- Rivile ERP calls: {', '.join(_call(e) for e in endpoints)}",
         f"- Inputs: {_inputs(op)}",
         f"- Results: {_names(_results(op))}",
         "",
@@ -149,14 +151,19 @@ def _everyday_section(op: dict[str, Any]) -> list[str]:
 
 
 def _endpoint_section(op: dict[str, Any], row: dict[str, Any] | None) -> list[str]:
-    title = _plain_title(op)
-    lines = [f"### {title}", ""]
-    summary = (row or {}).get("description") or ("" if row else str(op["description"]))
-    if summary:
-        lines += [summary, ""]
-    wire = f"`{row['http_method']} {row['path']}`" if row else "any path under `/v1`"
+    from build_contracts import ENDPOINT_NOTES, swagger_link
+
+    lines = [f"### {_plain_title(op)}", ""]
+    if row is None:
+        lines += [str(op["description"]), ""]
+        where = "any path under `/v1`"
+    else:
+        wire = f"{row['http_method']} {row['path']}"
+        if wire in ENDPOINT_NOTES:
+            lines += [ENDPOINT_NOTES[wire], ""]
+        where = f"`{wire}` · [API reference]({swagger_link(row)})"
     lines += [
-        f"- Action id: `{op['operation_id']}` · {_kind(op)} · Rivile ERP: {wire}",
+        f"- Action id: `{op['operation_id']}` · {_kind(op)} · {where}",
         f"- Inputs: {_inputs(op)}",
         f"- Results: {_names(_results(op))}",
         "",
@@ -171,7 +178,7 @@ def coverage_body(rows: list[dict[str, Any]]) -> str:
             [
                 f"- **Covered:** all {len(rows)} endpoints of the Rivile ERP Public API "
                 f"({len(rows) - writes} read, {writes} write), each as its own step, generated "
-                "from Rivile's OpenAPI document (pinned by its SHA-256).",
+                "from Rivile's OpenAPI document.",
                 "- **Inputs:** every path id and query parameter is its own input; every request "
                 "body is one `body` input typed with Rivile's schema; list filters accept only the "
                 "fields Rivile documents for that list.",

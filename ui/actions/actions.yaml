@@ -38,9 +38,9 @@ actions:
   - blocked_address
 - action_id: find_or_create_client
   title: Find or create customer / supplier
-  description: Looks the client up by client code, then registration code, then VAT number (GET /v1/clients);
-    several matches or conflicting codes are an error. Creates it (POST /v1/clients) only when none matches,
-    so running it again is safe — but not two runs at the same time.
+  description: Finds the client by code, which must exist, or finds it by registration code or VAT number
+    and creates it when none matches (GET and POST /v1/clients). Several matches or conflicting codes
+    are an error and nothing is created. Running it again is safe — but not two runs at the same time.
   required_scopes:
   - extension:invoke
   handler:
@@ -110,10 +110,9 @@ actions:
   - timeout_unknown
 - action_id: create_sales_invoice
   title: Create sales invoice
-  description: Creates a sales invoice with its lines (POST /v1/sale-invoices), finding or creating the
-    client first when no client code is given; lines beyond the first 100 are added one by one, and it
-    can post the document. If a later call fails, the step says exactly what was already created and is
-    not retried.
+  description: Creates a sales invoice with up to 100 lines in one request (POST /v1/sale-invoices), after
+    finding the client by code — or finding or creating it by registration or VAT code — and can post
+    it. If a later call fails, the step says exactly what was already created and is not retried.
   required_scopes:
   - extension:invoke
   handler:
@@ -191,7 +190,10 @@ actions:
   - lines_created
   - total_amount
   - total_tax
+  - total_with_tax
+  - status_id
   - posted
+  - post_note
   - record
   - external_effect_status
   - definitely_no_external_effect
@@ -215,10 +217,9 @@ actions:
   - timeout_unknown
 - action_id: create_purchase_invoice
   title: Create purchase invoice
-  description: Creates a purchase invoice with its lines (POST /v1/purchase-invoices), finding or creating
-    the client first when no client code is given; lines beyond the first 100 are added one by one, and
-    it can post the document. If a later call fails, the step says exactly what was already created and
-    is not retried.
+  description: Creates a purchase invoice with up to 100 lines in one request (POST /v1/purchase-invoices),
+    after finding the client by code — or finding or creating it by registration or VAT code — and can
+    post it. If a later call fails, the step says exactly what was already created and is not retried.
   required_scopes:
   - extension:invoke
   handler:
@@ -296,7 +297,10 @@ actions:
   - lines_created
   - total_amount
   - total_tax
+  - total_with_tax
+  - status_id
   - posted
+  - post_note
   - record
   - external_effect_status
   - definitely_no_external_effect
@@ -528,7 +532,7 @@ actions:
   result_fields:
   - items
   - count
-  - total_available
+  - totals
   - has_more
   error_codes:
   - invalid_payload
@@ -575,6 +579,7 @@ actions:
   result_fields:
   - prices
   - count
+  - has_more
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -612,6 +617,9 @@ actions:
   - name: since
     type: string
     required: true
+  - name: page
+    type: integer
+    required: false
   - name: max_pages
     type: integer
     required: false
@@ -640,7 +648,7 @@ actions:
 - action_id: client_debt
   title: Client debt
   description: Open amounts of one client from the receivables and payables registry (GET /v1/pr-registries,
-    totalBaseDue), with the overdue part.
+    totalBaseDue), totalled per registry type, with the overdue part.
   required_scopes:
   - extension:invoke
   handler:
@@ -660,8 +668,10 @@ actions:
   result_fields:
   - total_due
   - overdue
+  - totals_by_type
   - documents
   - count
+  - complete
   - has_more
   error_codes:
   - invalid_payload
@@ -681,10 +691,9 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_clients
-  title: 'Advanced · Clients: Clients (GET /v1/clients)'
-  description: 'Returns Client list. Fields available for filtering: id, createdAt, priceCategoryId, importReference,
-    active, code, typeId, regCode, vatNumber, name, email, isCustomer, isSupplier, updatedAt, workflowStatusId,
-    workflowStatusCode, economicActivity. Rivile ERP: GET /v1/clients.'
+  title: Advanced · List clients
+  description: 'List clients. Up to 100 records per page; filters accept the fields Rivile documents for
+    this list. Rivile ERP: GET /v1/clients.'
   required_scopes:
   - extension:invoke
   handler:
@@ -741,8 +750,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_clients
-  title: 'Advanced · Clients: Create client (POST /v1/clients)'
-  description: 'Create new client. Rivile ERP: POST /v1/clients.'
+  title: Advanced · Create client
+  description: 'Create client. Rivile ERP: POST /v1/clients.'
   required_scopes:
   - extension:invoke
   handler:
@@ -783,8 +792,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_clients_id
-  title: 'Advanced · Clients: Get client (GET /v1/clients/{id})'
-  description: 'Returns full client by id. Rivile ERP: GET /v1/clients/{id}.'
+  title: Advanced · Get client
+  description: 'Get client. Rivile ERP: GET /v1/clients/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -821,8 +830,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_clients_id
-  title: 'Advanced · Clients: Update client (PATCH /v1/clients/{id})'
-  description: 'Update existing client. Rivile ERP: PATCH /v1/clients/{id}.'
+  title: Advanced · Update client
+  description: 'Update client. Rivile ERP: PATCH /v1/clients/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -866,8 +875,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_clients_id_workflow_status
-  title: 'Advanced · Clients: Update workflow status (PATCH /v1/clients/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/clients/{id}/workflow-status.'
+  title: Advanced · Update client workflow status
+  description: 'Update client workflow status. Rivile ERP: PATCH /v1/clients/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -911,9 +920,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_contacts
-  title: 'Advanced · Contacts: Contacts (GET /v1/contacts)'
-  description: 'Returns Contact list. Fields available for filtering: id, code, name, title, email, phone,
-    clientId, clientCode, isMain, notes, active, updatedAt, createdAt. Rivile ERP: GET /v1/contacts.'
+  title: Advanced · List contacts
+  description: 'List contacts. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/contacts.'
   required_scopes:
   - extension:invoke
   handler:
@@ -970,8 +979,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_contacts
-  title: 'Advanced · Contacts: Create contact (POST /v1/contacts)'
-  description: 'Create new contact. Rivile ERP: POST /v1/contacts.'
+  title: Advanced · Create contact
+  description: 'Create contact. Rivile ERP: POST /v1/contacts.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1012,8 +1021,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_contacts_id
-  title: 'Advanced · Contacts: Get contact (GET /v1/contacts/{id})'
-  description: 'Returns full contact by id. Rivile ERP: GET /v1/contacts/{id}.'
+  title: Advanced · Get contact
+  description: 'Get contact. Rivile ERP: GET /v1/contacts/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1050,8 +1059,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_contacts_id
-  title: 'Advanced · Contacts: Update contact (PATCH /v1/contacts/{id})'
-  description: 'Update existing contact. Rivile ERP: PATCH /v1/contacts/{id}.'
+  title: Advanced · Update contact
+  description: 'Update contact. Rivile ERP: PATCH /v1/contacts/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1095,11 +1104,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_deliveries
-  title: 'Advanced · Deliveries: Deliveries list (GET /v1/deliveries)'
-  description: 'Returns deliveries list. Fields available for filtering: id, createdAt, updatedAt, documentNo,
-    docReference, typeId, statusId, groupingCode, workflowStatusId, workflowStatusCode, departmentId,
-    departmentCode, ioDepartmentId, ioDepartmentCode, ioClientId, ioClientCode, journalId, journalCode.
-    Rivile ERP: GET /v1/deliveries.'
+  title: Advanced · List deliveries
+  description: 'List deliveries. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/deliveries.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1156,8 +1163,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_deliveries
-  title: 'Advanced · Deliveries: Create delivery (POST /v1/deliveries)'
-  description: 'Creates new delivery. Rivile ERP: POST /v1/deliveries.'
+  title: Advanced · Create delivery
+  description: 'Create delivery. Rivile ERP: POST /v1/deliveries.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1198,8 +1205,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_deliveries_delivery_id
-  title: 'Advanced · Deliveries: Delete delivery (DELETE /v1/deliveries/{deliveryId})'
-  description: 'Deletes delivery. Rivile ERP: DELETE /v1/deliveries/{deliveryId}.'
+  title: Advanced · Delete delivery
+  description: 'Delete delivery. Rivile ERP: DELETE /v1/deliveries/{deliveryId}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1240,8 +1247,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_deliveries_delivery_id
-  title: 'Advanced · Deliveries: Get delivery (GET /v1/deliveries/{deliveryId})'
-  description: 'Returns full delivery by id. Rivile ERP: GET /v1/deliveries/{deliveryId}.'
+  title: Advanced · Get delivery
+  description: 'Get delivery. Rivile ERP: GET /v1/deliveries/{deliveryId}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1278,8 +1285,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_deliveries_delivery_id
-  title: 'Advanced · Deliveries: Update delivery (PATCH /v1/deliveries/{deliveryId})'
-  description: 'Update existing delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}.'
+  title: Advanced · Update delivery
+  description: 'Update delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1323,8 +1330,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_deliveries_delivery_id_lines
-  title: 'Advanced · Deliveries: Create delivery line (POST /v1/deliveries/{deliveryId}/lines)'
-  description: 'Creates new line in delivery. Rivile ERP: POST /v1/deliveries/{deliveryId}/lines.'
+  title: Advanced · Create delivery line
+  description: 'Create delivery line. Rivile ERP: POST /v1/deliveries/{deliveryId}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1368,8 +1375,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_deliveries_delivery_id_lines_line_id
-  title: 'Advanced · Deliveries: Delete delivery line (DELETE /v1/deliveries/{deliveryId}/lines/{lineId})'
-  description: 'Deletes delivery line. Rivile ERP: DELETE /v1/deliveries/{deliveryId}/lines/{lineId}.'
+  title: Advanced · Delete delivery line
+  description: 'Delete delivery line. Rivile ERP: DELETE /v1/deliveries/{deliveryId}/lines/{lineId}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1413,8 +1420,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_deliveries_delivery_id_lines_line_id
-  title: 'Advanced · Deliveries: Get delivery line (GET /v1/deliveries/{deliveryId}/lines/{lineId})'
-  description: 'Returns full delivery line by id. Rivile ERP: GET /v1/deliveries/{deliveryId}/lines/{lineId}.'
+  title: Advanced · Get delivery line
+  description: 'Get delivery line. Rivile ERP: GET /v1/deliveries/{deliveryId}/lines/{lineId}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1454,8 +1461,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_deliveries_delivery_id_lines_line_id
-  title: 'Advanced · Deliveries: Update delivery line (PATCH /v1/deliveries/{deliveryId}/lines/{lineId})'
-  description: 'Update existing delivery line. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/lines/{lineId}.'
+  title: Advanced · Update delivery line
+  description: 'Update delivery line. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/lines/{lineId}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1502,7 +1509,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_deliveries_delivery_id_lines_line_id_workflow_status
-  title: 'Advanced · Deliveries: Update delivery line workflow status (PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status)'
+  title: Advanced · Update delivery line workflow status
   description: 'Update delivery line workflow status. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status.'
   required_scopes:
   - extension:invoke
@@ -1550,8 +1557,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_deliveries_delivery_id_post
-  title: 'Advanced · Deliveries: Post delivery (PATCH /v1/deliveries/{deliveryId}/post)'
-  description: 'Posts delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/post.'
+  title: Advanced · Post delivery
+  description: 'Post delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/post.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1592,8 +1599,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_deliveries_delivery_id_unpost
-  title: 'Advanced · Deliveries: UnPost delivery (PATCH /v1/deliveries/{deliveryId}/unpost)'
-  description: 'UnPosts delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/unpost.'
+  title: Advanced · Unpost delivery
+  description: 'Unpost delivery. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/unpost.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1634,7 +1641,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_deliveries_delivery_id_workflow_status
-  title: 'Advanced · Deliveries: Update delivery workflow status (PATCH /v1/deliveries/{deliveryId}/workflow-status)'
+  title: Advanced · Update delivery workflow status
   description: 'Update delivery workflow status. Rivile ERP: PATCH /v1/deliveries/{deliveryId}/workflow-status.'
   required_scopes:
   - extension:invoke
@@ -1679,9 +1686,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_employees
-  title: 'Advanced · Employees: Employee and agreements (GET /v1/employees)'
-  description: 'Returns employee list with agreements. Fields available for filtering: id, code, name,
-    active updatedAt, createdAt, usedInPayrolls, mainDepartmentCode, positionCode. Rivile ERP: GET /v1/employees.'
+  title: Advanced · List employees with their agreements
+  description: 'List employees with their agreements. Up to 100 records per page; filters accept the fields
+    Rivile documents for this list. Rivile ERP: GET /v1/employees.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1738,8 +1745,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_files_id_content
-  title: 'Advanced · Files: Get file content (GET /v1/files/{id}/content)'
-  description: 'Returns full file content by id. Rivile ERP: GET /v1/files/{id}/content.'
+  title: Advanced · Get file content
+  description: 'Get file content. Rivile ERP: GET /v1/files/{id}/content.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1779,9 +1786,9 @@ actions:
   - blocked_address
   - artifact_output_unavailable
 - action_id: get_gift_cards
-  title: 'Advanced · Gift cards: Gift cards (GET /v1/gift-cards)'
-  description: 'Returns gift card list. Fields available for filtering: id, createdAt, updatedAt, code,
-    typeId, nominal, dateTo, serviceItemCode, serviceItemId. Rivile ERP: GET /v1/gift-cards.'
+  title: Advanced · List gift cards
+  description: 'List gift cards. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/gift-cards.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1838,8 +1845,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_gift_cards
-  title: 'Advanced · Gift cards: Create gift card (POST /v1/gift-cards)'
-  description: 'Create new gift card. Rivile ERP: POST /v1/gift-cards.'
+  title: Advanced · Create gift card
+  description: 'Create gift card. Rivile ERP: POST /v1/gift-cards.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1880,8 +1887,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_gift_cards_id
-  title: 'Advanced · Gift cards: Get gift card (GET /v1/gift-cards/{id})'
-  description: 'Returns full gift card by id. Rivile ERP: GET /v1/gift-cards/{id}.'
+  title: Advanced · Get gift card
+  description: 'Get gift card. Rivile ERP: GET /v1/gift-cards/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1918,8 +1925,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_gift_cards_id
-  title: 'Advanced · Gift cards: Update gift card (PATCH /v1/gift-cards/{id})'
-  description: 'Update existing gift card. Rivile ERP: PATCH /v1/gift-cards/{id}.'
+  title: Advanced · Update gift card
+  description: 'Update gift card. Rivile ERP: PATCH /v1/gift-cards/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -1963,9 +1970,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_gift_cards_id_activate
-  title: 'Advanced · Gift cards: Activate gift card (PATCH /v1/gift-cards/{id}/activate)'
-  description: 'Activate existing gift card. Optionally can pass activationDate in request body. Rivile
-    ERP: PATCH /v1/gift-cards/{id}/activate.'
+  title: Advanced · Activate gift card
+  description: 'Activate gift card. An activationDate may be given in the body. Rivile ERP: PATCH /v1/gift-cards/{id}/activate.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2009,7 +2015,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_gift_cards_id_cancel
-  title: 'Advanced · Gift cards: Cancel gift card (PATCH /v1/gift-cards/{id}/cancel)'
+  title: Advanced · Cancel gift card
   description: 'Cancel gift card. Rivile ERP: PATCH /v1/gift-cards/{id}/cancel.'
   required_scopes:
   - extension:invoke
@@ -2051,8 +2057,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_gift_cards_id_undo_cancellation
-  title: 'Advanced · Gift cards: Undo cancellation gift card (PATCH /v1/gift-cards/{id}/undo-cancellation)'
-  description: 'Undo cancellation gift card. Rivile ERP: PATCH /v1/gift-cards/{id}/undo-cancellation.'
+  title: Advanced · Undo cancellation of gift card
+  description: 'Undo cancellation of gift card. Rivile ERP: PATCH /v1/gift-cards/{id}/undo-cancellation.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2093,10 +2099,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_inventory_adjustments
-  title: 'Advanced · Inventory adjustments: Inventory adjustments list (GET /v1/inventory-adjustments)'
-  description: 'Returns inventory adjustments list. Fields available for filtering: id, createdAt, updatedAt,
-    documentNo, opDate, statusId, journalId, journalCode ,sourcingMethod, gpaisSaleMethod, assigneeId,
-    committeeId, docReference, importReference, notes. Rivile ERP: GET /v1/inventory-adjustments.'
+  title: Advanced · List inventory adjustments
+  description: 'List inventory adjustments. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/inventory-adjustments.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2153,8 +2158,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_inventory_adjustments
-  title: 'Advanced · Inventory adjustments: Create inventory adjustment (POST /v1/inventory-adjustments)'
-  description: 'Creates new inventory adjustment. Rivile ERP: POST /v1/inventory-adjustments.'
+  title: Advanced · Create inventory adjustment
+  description: 'Create inventory adjustment. Rivile ERP: POST /v1/inventory-adjustments.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2195,8 +2200,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_inventory_adjustments_id
-  title: 'Advanced · Inventory adjustments: Delete inventory adjustment (DELETE /v1/inventory-adjustments/{id})'
-  description: 'Deletes inventory adjustment. Rivile ERP: DELETE /v1/inventory-adjustments/{id}.'
+  title: Advanced · Delete inventory adjustment
+  description: 'Delete inventory adjustment. Rivile ERP: DELETE /v1/inventory-adjustments/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2237,8 +2242,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_inventory_adjustments_id
-  title: 'Advanced · Inventory adjustments: Get inventory adjustment (GET /v1/inventory-adjustments/{id})'
-  description: 'Returns full inventory adjustment by id. Rivile ERP: GET /v1/inventory-adjustments/{id}.'
+  title: Advanced · Get inventory adjustment
+  description: 'Get inventory adjustment. Rivile ERP: GET /v1/inventory-adjustments/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2275,8 +2280,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_inventory_adjustments_id_lines
-  title: 'Advanced · Inventory adjustments: Create inventory adjustment line (POST /v1/inventory-adjustments/{id}/lines)'
-  description: 'Creates new line in inventory adjustment. Rivile ERP: POST /v1/inventory-adjustments/{id}/lines.'
+  title: Advanced · Create inventory adjustment line
+  description: 'Create inventory adjustment line. Rivile ERP: POST /v1/inventory-adjustments/{id}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2320,8 +2325,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_inventory_adjustments_id_post
-  title: 'Advanced · Inventory adjustments: Post inventory adjustment (PATCH /v1/inventory-adjustments/{id}/post)'
-  description: 'Posts inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/post.'
+  title: Advanced · Post inventory adjustment
+  description: 'Post inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/post.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2362,8 +2367,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_inventory_adjustments_id_unpost
-  title: 'Advanced · Inventory adjustments: UnPost inventory adjustment (PATCH /v1/inventory-adjustments/{id}/unpost)'
-  description: 'UnPosts inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/unpost.'
+  title: Advanced · Unpost inventory adjustment
+  description: 'Unpost inventory adjustment. Rivile ERP: PATCH /v1/inventory-adjustments/{id}/unpost.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2404,10 +2409,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_inventory_movements
-  title: 'Advanced · Inventory movements: Inventory movements list (GET /v1/inventory-movements)'
-  description: 'Returns inventory movements list. Fields available for filtering: id, createdAt, updatedAt,
-    documentNo, opDate, statusId, journalId, journalCode, departmentOutId, departmentInId, assigneeId,
-    docReference, importReference, workflowStatusId, workflowStatusCode, notes. Rivile ERP: GET /v1/inventory-movements.'
+  title: Advanced · List inventory movements
+  description: 'List inventory movements. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/inventory-movements.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2464,8 +2468,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_inventory_movements
-  title: 'Advanced · Inventory movements: Create inventory movement (POST /v1/inventory-movements)'
-  description: 'Creates new inventory movement. Rivile ERP: POST /v1/inventory-movements.'
+  title: Advanced · Create inventory movement
+  description: 'Create inventory movement. Rivile ERP: POST /v1/inventory-movements.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2506,8 +2510,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_inventory_movements_id
-  title: 'Advanced · Inventory movements: Delete inventory movement (DELETE /v1/inventory-movements/{id})'
-  description: 'Deletes inventory movement. Rivile ERP: DELETE /v1/inventory-movements/{id}.'
+  title: Advanced · Delete inventory movement
+  description: 'Delete inventory movement. Rivile ERP: DELETE /v1/inventory-movements/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2548,8 +2552,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_inventory_movements_id
-  title: 'Advanced · Inventory movements: Get inventory movement (GET /v1/inventory-movements/{id})'
-  description: 'Returns full inventory movement by id. Rivile ERP: GET /v1/inventory-movements/{id}.'
+  title: Advanced · Get inventory movement
+  description: 'Get inventory movement. Rivile ERP: GET /v1/inventory-movements/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2586,8 +2590,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_inventory_movements_id_lines
-  title: 'Advanced · Inventory movements: Create inventory movement line (POST /v1/inventory-movements/{id}/lines)'
-  description: 'Creates new line in in inventory movement. Rivile ERP: POST /v1/inventory-movements/{id}/lines.'
+  title: Advanced · Create inventory movement line
+  description: 'Create inventory movement line. Rivile ERP: POST /v1/inventory-movements/{id}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2631,8 +2635,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_inventory_movements_id_post
-  title: 'Advanced · Inventory movements: Post inventory movement (PATCH /v1/inventory-movements/{id}/post)'
-  description: 'Posts inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/post.'
+  title: Advanced · Post inventory movement
+  description: 'Post inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/post.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2673,8 +2677,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_inventory_movements_id_unpost
-  title: 'Advanced · Inventory movements: UnPost inventory movement (PATCH /v1/inventory-movements/{id}/unpost)'
-  description: 'UnPosts inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/unpost.'
+  title: Advanced · Unpost inventory movement
+  description: 'Unpost inventory movement. Rivile ERP: PATCH /v1/inventory-movements/{id}/unpost.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2715,8 +2719,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_inventory_movements_id_workflow_status
-  title: 'Advanced · Inventory movements: Update workflow status (PATCH /v1/inventory-movements/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/inventory-movements/{id}/workflow-status.'
+  title: Advanced · Update inventory movement workflow status
+  description: 'Update inventory movement workflow status. Rivile ERP: PATCH /v1/inventory-movements/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2760,10 +2764,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_inventory_stocks
-  title: 'Advanced · Inventory stock: Inventory stock (GET /v1/inventory-stocks)'
-  description: 'Returns Inventory stock list. Fields available for filtering: productId, productCode,
-    serial, uomId, uomCode, departmentId, departmentCode, lotId, lotCode, markId, markCode, objectId,
-    objectCode, qtyAltAvailable qtyAltWarehouse. Rivile ERP: GET /v1/inventory-stocks.'
+  title: Advanced · List inventory stock
+  description: 'List inventory stock. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/inventory-stocks.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2820,9 +2823,9 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_lots
-  title: 'Advanced · Lots: Lots (GET /v1/lots)'
-  description: 'Returns Lot list. Fields available for filtering: id, createdAt, updatedAt, active, code,
-    name, expirationDate. Rivile ERP: GET /v1/lots.'
+  title: Advanced · List lots
+  description: 'List lots. Up to 100 records per page; filters accept the fields Rivile documents for
+    this list. Rivile ERP: GET /v1/lots.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2879,8 +2882,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_lots
-  title: 'Advanced · Lots: Create lot (POST /v1/lots)'
-  description: 'Create new lot. Rivile ERP: POST /v1/lots.'
+  title: Advanced · Create lot
+  description: 'Create lot. Rivile ERP: POST /v1/lots.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2921,8 +2924,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_lots_id
-  title: 'Advanced · Lots: Get lot (GET /v1/lots/{id})'
-  description: 'Returns full lot by id. Rivile ERP: GET /v1/lots/{id}.'
+  title: Advanced · Get lot
+  description: 'Get lot. Rivile ERP: GET /v1/lots/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -2959,8 +2962,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_lots_id
-  title: 'Advanced · Lots: Update lot (PATCH /v1/lots/{id})'
-  description: 'Update existing lot. Rivile ERP: PATCH /v1/lots/{id}.'
+  title: Advanced · Update lot
+  description: 'Update lot. Rivile ERP: PATCH /v1/lots/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3004,10 +3007,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_manufactures
-  title: 'Advanced · Manufacturing: Manufactures list (GET /v1/manufactures)'
-  description: 'Returns manufactures list. Fields available for filtering: id, createdAt, updatedAt, documentNo,
-    opDate, statusId, journalId, journalCode, assigneeId, docReference, importReference, workflowStatusId,
-    workflowStatusCode, notes. Rivile ERP: GET /v1/manufactures.'
+  title: Advanced · List manufactures
+  description: 'List manufactures. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/manufactures.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3064,8 +3066,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_manufactures
-  title: 'Advanced · Manufacturing: Create manufacture (POST /v1/manufactures)'
-  description: 'Creates new manufacture. Rivile ERP: POST /v1/manufactures.'
+  title: Advanced · Create manufacture
+  description: 'Create manufacture. Rivile ERP: POST /v1/manufactures.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3106,8 +3108,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_manufactures_id
-  title: 'Advanced · Manufacturing: Delete manufacture (DELETE /v1/manufactures/{id})'
-  description: 'Deletes manufacture. Rivile ERP: DELETE /v1/manufactures/{id}.'
+  title: Advanced · Delete manufacture
+  description: 'Delete manufacture. Rivile ERP: DELETE /v1/manufactures/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3148,8 +3150,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_manufactures_id
-  title: 'Advanced · Manufacturing: Get manufacture (GET /v1/manufactures/{id})'
-  description: 'Returns full manufacture by id. Rivile ERP: GET /v1/manufactures/{id}.'
+  title: Advanced · Get manufacture
+  description: 'Get manufacture. Rivile ERP: GET /v1/manufactures/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3186,8 +3188,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_manufactures_id_lines
-  title: 'Advanced · Manufacturing: Create manufacture line (POST /v1/manufactures/{id}/lines)'
-  description: 'Creates new line in manufacture. Rivile ERP: POST /v1/manufactures/{id}/lines.'
+  title: Advanced · Create manufacture line
+  description: 'Create manufacture line. Rivile ERP: POST /v1/manufactures/{id}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3231,8 +3233,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_manufactures_id_post
-  title: 'Advanced · Manufacturing: Post manufacture (PATCH /v1/manufactures/{id}/post)'
-  description: 'Posts manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/post.'
+  title: Advanced · Post manufacture
+  description: 'Post manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/post.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3273,8 +3275,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_manufactures_id_unpost
-  title: 'Advanced · Manufacturing: UnPost manufacture (PATCH /v1/manufactures/{id}/unpost)'
-  description: 'UnPosts manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/unpost.'
+  title: Advanced · Unpost manufacture
+  description: 'Unpost manufacture. Rivile ERP: PATCH /v1/manufactures/{id}/unpost.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3315,8 +3317,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_manufactures_id_workflow_status
-  title: 'Advanced · Manufacturing: Update workflow status (PATCH /v1/manufactures/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/manufactures/{id}/workflow-status.'
+  title: Advanced · Update manufacture workflow status
+  description: 'Update manufacture workflow status. Rivile ERP: PATCH /v1/manufactures/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3360,12 +3362,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_payments
-  title: 'Advanced · Payments: Payments (GET /v1/payments)'
-  description: 'Returns Payments list. Fields available for filtering: id documentNo opDate statusId typeId
-    paymentMethodId paymentMethodCode accountId accountCode currencyId currencyCode clientId clientCode
-    documentTypeId prAccountId prAccountCode departmentId departmentCode objectId objectCode journalId
-    journalCode documentRef assigneeId assigneeCode workflowStatusId workflowStatusCode. Rivile ERP: GET
-    /v1/payments.'
+  title: Advanced · List payments
+  description: 'List payments. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/payments.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3422,8 +3421,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_payments
-  title: 'Advanced · Payments: Create payment (POST /v1/payments)'
-  description: 'Creates new payment. Rivile ERP: POST /v1/payments.'
+  title: Advanced · Create payment
+  description: 'Create payment. Rivile ERP: POST /v1/payments.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3464,8 +3463,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_payments_id
-  title: 'Advanced · Payments: Get payment (GET /v1/payments/{id})'
-  description: 'Returns full payment by id. Rivile ERP: GET /v1/payments/{id}.'
+  title: Advanced · Get payment
+  description: 'Get payment. Rivile ERP: GET /v1/payments/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3502,8 +3501,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_payments_id_cancel
-  title: 'Advanced · Payments: Cancel payment (PATCH /v1/payments/{id}/cancel)'
-  description: 'Cancels payment. Rivile ERP: PATCH /v1/payments/{id}/cancel.'
+  title: Advanced · Cancel payment
+  description: 'Cancel payment. Rivile ERP: PATCH /v1/payments/{id}/cancel.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3544,8 +3543,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_payments_id_link_payment
-  title: 'Advanced · Payments: Link payment (PATCH /v1/payments/{id}/link-payment)'
-  description: 'Links payment to specific document. Rivile ERP: PATCH /v1/payments/{id}/link-payment.'
+  title: Advanced · Link payment
+  description: 'Link payment. Links the payment to a sale or purchase invoice or order. Rivile ERP: PATCH
+    /v1/payments/{id}/link-payment.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3589,8 +3589,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_payments_id_post
-  title: 'Advanced · Payments: Post payment (PATCH /v1/payments/{id}/post)'
-  description: 'Posts payment. Rivile ERP: PATCH /v1/payments/{id}/post.'
+  title: Advanced · Post payment
+  description: 'Post payment. Rivile ERP: PATCH /v1/payments/{id}/post.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3631,8 +3631,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_payments_id_undo_cancellation
-  title: 'Advanced · Payments: Undo cancellation payment (PATCH /v1/payments/{id}/undo-cancellation)'
-  description: 'Undoes cancellation for payment. Rivile ERP: PATCH /v1/payments/{id}/undo-cancellation.'
+  title: Advanced · Undo cancellation of payment
+  description: 'Undo cancellation of payment. Rivile ERP: PATCH /v1/payments/{id}/undo-cancellation.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3673,8 +3673,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_payments_id_unpost
-  title: 'Advanced · Payments: UnPost payment (PATCH /v1/payments/{id}/unpost)'
-  description: 'UnPosts payment. Rivile ERP: PATCH /v1/payments/{id}/unpost.'
+  title: Advanced · Unpost payment
+  description: 'Unpost payment. Rivile ERP: PATCH /v1/payments/{id}/unpost.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3715,8 +3715,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_payments_id_workflow_status
-  title: 'Advanced · Payments: Update workflow status (PATCH /v1/payments/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/payments/{id}/workflow-status.'
+  title: Advanced · Update payment workflow status
+  description: 'Update payment workflow status. Rivile ERP: PATCH /v1/payments/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3760,10 +3760,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_products
-  title: 'Advanced · Products: Products (GET /v1/products)'
-  description: 'Returns Product list. Fields available for filtering: id, createdAt, active, code, mainBarcode,
-    importReference, productTypeId, priceStrategyId, bomTypeId, name, updatedAt, workflowStatusId, workflowStatusCode,
-    mainProductGroupName, mainProductGroupCode, mainProductGroupId, isEcommerce. Rivile ERP: GET /v1/products.'
+  title: Advanced · List products
+  description: 'List products. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/products.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3820,8 +3819,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_products
-  title: 'Advanced · Products: Create product (POST /v1/products)'
-  description: 'Create new product. Rivile ERP: POST /v1/products.'
+  title: Advanced · Create product
+  description: 'Create product. Rivile ERP: POST /v1/products.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3862,8 +3861,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_products_product_uom_id
-  title: 'Advanced · Products: Update product unit of measure (PATCH /v1/products/product-uom/{id})'
-  description: 'Update existing product unit of measure. Rivile ERP: PATCH /v1/products/product-uom/{id}.'
+  title: Advanced · Update product unit of measure
+  description: 'Update product unit of measure. Rivile ERP: PATCH /v1/products/product-uom/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3907,8 +3906,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_products_id
-  title: 'Advanced · Products: Get product (GET /v1/products/{id})'
-  description: 'Returns full product by id. Rivile ERP: GET /v1/products/{id}.'
+  title: Advanced · Get product
+  description: 'Get product. Rivile ERP: GET /v1/products/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3945,8 +3944,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_products_id
-  title: 'Advanced · Products: Update product (PATCH /v1/products/{id})'
-  description: 'Update existing product. Rivile ERP: PATCH /v1/products/{id}.'
+  title: Advanced · Update product
+  description: 'Update product. Rivile ERP: PATCH /v1/products/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -3990,8 +3989,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_products_id_price
-  title: 'Advanced · Products: Create product price (POST /v1/products/{id}/price)'
-  description: 'Create new product price. Rivile ERP: POST /v1/products/{id}/price.'
+  title: Advanced · Create product price
+  description: 'Create product price. Rivile ERP: POST /v1/products/{id}/price.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4035,8 +4034,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_products_id_product_uom
-  title: 'Advanced · Products: Create product unit of measure (POST /v1/products/{id}/product-uom)'
-  description: 'Create new product unit of measure in product. Rivile ERP: POST /v1/products/{id}/product-uom.'
+  title: Advanced · Create product unit of measure
+  description: 'Create product unit of measure. Rivile ERP: POST /v1/products/{id}/product-uom.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4080,8 +4079,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_products_id_workflow_status
-  title: 'Advanced · Products: Update workflow status (PATCH /v1/products/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/products/{id}/workflow-status.'
+  title: Advanced · Update product workflow status
+  description: 'Update product workflow status. Rivile ERP: PATCH /v1/products/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4125,11 +4124,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_purchase_invoices
-  title: 'Advanced · Purchase invoices: Purchase invoices list (GET /v1/purchase-invoices)'
-  description: 'Returns purchase invoices list. Fields available for filtering: id, createdAt, clientId,
-    clientCode journalId, journalCode, supplierAgreementId, supplierAgreementCode, isSent, opDate, docDate,
-    typeId, documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode.
-    Rivile ERP: GET /v1/purchase-invoices.'
+  title: Advanced · List purchase invoices
+  description: 'List purchase invoices. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/purchase-invoices.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4186,8 +4183,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_purchase_invoices
-  title: 'Advanced · Purchase invoices: Create purchase invoice (POST /v1/purchase-invoices)'
-  description: 'Creates new purchase invoice. Rivile ERP: POST /v1/purchase-invoices.'
+  title: Advanced · Create purchase invoice
+  description: 'Create purchase invoice. Rivile ERP: POST /v1/purchase-invoices.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4228,8 +4225,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_purchase_invoices_from_purchase_order_id
-  title: 'Advanced · Purchase invoices: Create purchase invoice from order (POST /v1/purchase-invoices/from/purchase-order/{id})'
-  description: 'Creates purchase invoice from order. Rivile ERP: POST /v1/purchase-invoices/from/purchase-order/{id}.'
+  title: Advanced · Create purchase invoice from order
+  description: 'Create purchase invoice from order. Rivile ERP: POST /v1/purchase-invoices/from/purchase-order/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4273,8 +4270,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_purchase_invoices_id
-  title: 'Advanced · Purchase invoices: Delete purchase invoice (DELETE /v1/purchase-invoices/{id})'
-  description: 'Deletes purchase invoice. Rivile ERP: DELETE /v1/purchase-invoices/{id}.'
+  title: Advanced · Delete purchase invoice
+  description: 'Delete purchase invoice. Rivile ERP: DELETE /v1/purchase-invoices/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4315,8 +4312,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_purchase_invoices_id
-  title: 'Advanced · Purchase invoices: Get purchase invoice (GET /v1/purchase-invoices/{id})'
-  description: 'Returns full purchase invoice by id. Rivile ERP: GET /v1/purchase-invoices/{id}.'
+  title: Advanced · Get purchase invoice
+  description: 'Get purchase invoice. Rivile ERP: GET /v1/purchase-invoices/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4353,8 +4350,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_purchase_invoices_id_cancel
-  title: 'Advanced · Purchase invoices: Cancel purchase invoice (PATCH /v1/purchase-invoices/{id}/cancel)'
-  description: 'Cancels purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/cancel.'
+  title: Advanced · Cancel purchase invoice
+  description: 'Cancel purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/cancel.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4395,8 +4392,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_purchase_invoices_id_fixed_payments
-  title: 'Advanced · Purchase invoices: Create fixed payment for purchase invoice (POST /v1/purchase-invoices/{id}/fixed-payments)'
-  description: 'Creates fixed payment for purchase invoice. Rivile ERP: POST /v1/purchase-invoices/{id}/fixed-payments.'
+  title: Advanced · Create fixed payment for purchase invoice
+  description: 'Create fixed payment for purchase invoice. Rivile ERP: POST /v1/purchase-invoices/{id}/fixed-payments.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4440,8 +4437,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_purchase_invoices_id_lines
-  title: 'Advanced · Purchase invoices: Create purchase invoice line (POST /v1/purchase-invoices/{id}/lines)'
-  description: 'Creates new line in purchase invoice. Rivile ERP: POST /v1/purchase-invoices/{id}/lines.'
+  title: Advanced · Create purchase invoice line
+  description: 'Create purchase invoice line. Rivile ERP: POST /v1/purchase-invoices/{id}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4485,8 +4482,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_purchase_invoices_id_post
-  title: 'Advanced · Purchase invoices: Post purchase invoice (PATCH /v1/purchase-invoices/{id}/post)'
-  description: 'Posts purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/post.'
+  title: Advanced · Post purchase invoice
+  description: 'Post purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/post.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4527,8 +4524,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_purchase_invoices_id_undo_cancellation
-  title: 'Advanced · Purchase invoices: Undo cancellation purchase invoice (PATCH /v1/purchase-invoices/{id}/undo-cancellation)'
-  description: 'Undoes cancellation of purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/undo-cancellation.'
+  title: Advanced · Undo cancellation of purchase invoice
+  description: 'Undo cancellation of purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/undo-cancellation.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4569,8 +4566,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_purchase_invoices_id_unpost
-  title: 'Advanced · Purchase invoices: UnPost purchase invoice (PATCH /v1/purchase-invoices/{id}/unpost)'
-  description: 'UnPosts purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/unpost.'
+  title: Advanced · Unpost purchase invoice
+  description: 'Unpost purchase invoice. Rivile ERP: PATCH /v1/purchase-invoices/{id}/unpost.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4611,8 +4608,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_purchase_invoices_id_workflow_status
-  title: 'Advanced · Purchase invoices: Update workflow status (PATCH /v1/purchase-invoices/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/purchase-invoices/{id}/workflow-status.'
+  title: Advanced · Update purchase invoice workflow status
+  description: 'Update purchase invoice workflow status. Rivile ERP: PATCH /v1/purchase-invoices/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4656,11 +4653,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_purchase_orders
-  title: 'Advanced · Purchase orders: Purchase orders list (GET /v1/purchase-orders)'
-  description: 'Returns purchase orders list. Fields available for filtering: id, createdAt, clientId,
-    clientCode, journalId, journalCode, supplierAgreementId, supplierAgreementCode, isSent, opDate, docDate,
-    documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode.
-    Rivile ERP: GET /v1/purchase-orders.'
+  title: Advanced · List purchase orders
+  description: 'List purchase orders. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/purchase-orders.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4717,8 +4712,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_purchase_orders
-  title: 'Advanced · Purchase orders: Create purchase order (POST /v1/purchase-orders)'
-  description: 'Create new purchase order. Rivile ERP: POST /v1/purchase-orders.'
+  title: Advanced · Create purchase order
+  description: 'Create purchase order. Rivile ERP: POST /v1/purchase-orders.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4759,8 +4754,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_purchase_orders_lines_id
-  title: 'Advanced · Purchase orders: Get purchase order line (GET /v1/purchase-orders/lines/{id})'
-  description: 'Returns purchase order line by id. Rivile ERP: GET /v1/purchase-orders/lines/{id}.'
+  title: Advanced · Get purchase order line
+  description: 'Get purchase order line. Rivile ERP: GET /v1/purchase-orders/lines/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4797,8 +4792,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: delete_purchase_orders_id
-  title: 'Advanced · Purchase orders: Delete purchase order (DELETE /v1/purchase-orders/{id})'
-  description: 'Deletes purchase order. Rivile ERP: DELETE /v1/purchase-orders/{id}.'
+  title: Advanced · Delete purchase order
+  description: 'Delete purchase order. Rivile ERP: DELETE /v1/purchase-orders/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4839,8 +4834,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_purchase_orders_id
-  title: 'Advanced · Purchase orders: Get purchase order (GET /v1/purchase-orders/{id})'
-  description: 'Returns full purchase order by id. Rivile ERP: GET /v1/purchase-orders/{id}.'
+  title: Advanced · Get purchase order
+  description: 'Get purchase order. Rivile ERP: GET /v1/purchase-orders/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4877,8 +4872,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_purchase_orders_id_approve
-  title: 'Advanced · Purchase orders: Approve purchase order (PATCH /v1/purchase-orders/{id}/approve)'
-  description: 'Approves purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/approve.'
+  title: Advanced · Approve purchase order
+  description: 'Approve purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/approve.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4919,8 +4914,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_purchase_orders_id_cancel_approve
-  title: 'Advanced · Purchase orders: Cancel approve purchase order (PATCH /v1/purchase-orders/{id}/cancel-approve)'
-  description: 'Cancels approval of purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/cancel-approve.'
+  title: Advanced · Cancel approval of purchase order
+  description: 'Cancel approval of purchase order. Rivile ERP: PATCH /v1/purchase-orders/{id}/cancel-approve.'
   required_scopes:
   - extension:invoke
   handler:
@@ -4961,8 +4956,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_purchase_orders_id_lines
-  title: 'Advanced · Purchase orders: Create purchase order line (POST /v1/purchase-orders/{id}/lines)'
-  description: 'Creates new line in purchase order. Rivile ERP: POST /v1/purchase-orders/{id}/lines.'
+  title: Advanced · Create purchase order line
+  description: 'Create purchase order line. Rivile ERP: POST /v1/purchase-orders/{id}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5006,8 +5001,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_purchase_orders_id_workflow_status
-  title: 'Advanced · Purchase orders: Update workflow status (PATCH /v1/purchase-orders/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/purchase-orders/{id}/workflow-status.'
+  title: Advanced · Update purchase order workflow status
+  description: 'Update purchase order workflow status. Rivile ERP: PATCH /v1/purchase-orders/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5051,9 +5046,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_pr_registries
-  title: 'Advanced · Receivables and payables: PR registry (GET /v1/pr-registries)'
-  description: 'Returns PR Registry list. Fields available for filtering: id, clientId, clientCode, clientName,
-    documentNo, date, dueDate, totalCurDue, refModuleId, refId, typeId. Rivile ERP: GET /v1/pr-registries.'
+  title: Advanced · List receivables and payables
+  description: 'List receivables and payables. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/pr-registries.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5110,11 +5105,9 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_sale_invoices
-  title: 'Advanced · Sale invoices: Sale invoices list (GET /v1/sale-invoices)'
-  description: 'Returns sale invoices list. Fields available for filtering: id, createdAt, clientId, clientCode,
-    journalId, journalCode, customerAgreementId, customerAgreementCode, isSent, opDate, docDate, typeId,
-    documentNo, docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode.
-    Rivile ERP: GET /v1/sale-invoices.'
+  title: Advanced · List sale invoices
+  description: 'List sale invoices. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/sale-invoices.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5171,8 +5164,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_sale_invoices
-  title: 'Advanced · Sale invoices: Create sale invoice (POST /v1/sale-invoices)'
-  description: 'Create new sale invoice. Rivile ERP: POST /v1/sale-invoices.'
+  title: Advanced · Create sale invoice
+  description: 'Create sale invoice. Rivile ERP: POST /v1/sale-invoices.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5213,7 +5206,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_sale_invoices_from_sale_order_id
-  title: 'Advanced · Sale invoices: Create sale invoice from order (POST /v1/sale-invoices/from/sale-order/{id})'
+  title: Advanced · Create sale invoice from order
   description: 'Create sale invoice from order. Rivile ERP: POST /v1/sale-invoices/from/sale-order/{id}.'
   required_scopes:
   - extension:invoke
@@ -5258,7 +5251,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_sale_invoices_id
-  title: 'Advanced · Sale invoices: Delete sale invoice (DELETE /v1/sale-invoices/{id})'
+  title: Advanced · Delete sale invoice
   description: 'Delete sale invoice. Rivile ERP: DELETE /v1/sale-invoices/{id}.'
   required_scopes:
   - extension:invoke
@@ -5300,8 +5293,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_sale_invoices_id
-  title: 'Advanced · Sale invoices: Get sale invoice (GET /v1/sale-invoices/{id})'
-  description: 'Returns full sale invoice by id. Rivile ERP: GET /v1/sale-invoices/{id}.'
+  title: Advanced · Get sale invoice
+  description: 'Get sale invoice. Rivile ERP: GET /v1/sale-invoices/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5338,7 +5331,7 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_sale_invoices_id_cancel
-  title: 'Advanced · Sale invoices: Cancel sale invoice (PATCH /v1/sale-invoices/{id}/cancel)'
+  title: Advanced · Cancel sale invoice
   description: 'Cancel sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/cancel.'
   required_scopes:
   - extension:invoke
@@ -5380,7 +5373,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_sale_invoices_id_fixed_payments
-  title: 'Advanced · Sale invoices: Create fixed payment for sale invoice (POST /v1/sale-invoices/{id}/fixed-payments)'
+  title: Advanced · Create fixed payment for sale invoice
   description: 'Create fixed payment for sale invoice. Rivile ERP: POST /v1/sale-invoices/{id}/fixed-payments.'
   required_scopes:
   - extension:invoke
@@ -5425,8 +5418,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_sale_invoices_id_lines
-  title: 'Advanced · Sale invoices: Create sale invoice line (POST /v1/sale-invoices/{id}/lines)'
-  description: 'Create new line in sale invoice. Rivile ERP: POST /v1/sale-invoices/{id}/lines.'
+  title: Advanced · Create sale invoice line
+  description: 'Create sale invoice line. Rivile ERP: POST /v1/sale-invoices/{id}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5470,7 +5463,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_invoices_id_post
-  title: 'Advanced · Sale invoices: Post sale invoice (PATCH /v1/sale-invoices/{id}/post)'
+  title: Advanced · Post sale invoice
   description: 'Post sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/post.'
   required_scopes:
   - extension:invoke
@@ -5512,8 +5505,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_invoices_id_reserve
-  title: 'Advanced · Sale invoices: Reserve qty sale invoice (PATCH /v1/sale-invoices/{id}/reserve)'
-  description: 'Reserve qty sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/reserve.'
+  title: Advanced · Reserve quantities for sale invoice
+  description: 'Reserve quantities for sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/reserve.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5554,8 +5547,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_invoices_id_undo_cancellation
-  title: 'Advanced · Sale invoices: Undo cancellation sale invoice (PATCH /v1/sale-invoices/{id}/undo-cancellation)'
-  description: 'Undo cancellation sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/undo-cancellation.'
+  title: Advanced · Undo cancellation of sale invoice
+  description: 'Undo cancellation of sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/undo-cancellation.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5596,8 +5589,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_invoices_id_unpost
-  title: 'Advanced · Sale invoices: UnPost sale invoice (PATCH /v1/sale-invoices/{id}/unpost)'
-  description: 'UnPost sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unpost.'
+  title: Advanced · Unpost sale invoice
+  description: 'Unpost sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unpost.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5638,8 +5631,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_invoices_id_unreserve
-  title: 'Advanced · Sale invoices: UnReserve qty sale invoice (PATCH /v1/sale-invoices/{id}/unreserve)'
-  description: 'UnReserve qty sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unreserve.'
+  title: Advanced · Unreserve quantities for sale invoice
+  description: 'Unreserve quantities for sale invoice. Rivile ERP: PATCH /v1/sale-invoices/{id}/unreserve.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5680,8 +5673,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_invoices_id_workflow_status
-  title: 'Advanced · Sale invoices: Update workflow status (PATCH /v1/sale-invoices/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/sale-invoices/{id}/workflow-status.'
+  title: Advanced · Update sale invoice workflow status
+  description: 'Update sale invoice workflow status. Rivile ERP: PATCH /v1/sale-invoices/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5725,11 +5718,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_sale_orders
-  title: 'Advanced · Sale orders: Sale orders list (GET /v1/sale-orders)'
-  description: 'Returns sale orders list. Fields available for filtering: id, createdAt, clientId, clientCode
-    journalId, journalCode, customerAgreementId, customerAgreementCode, isSent, opDate, docDate, documentNo,
-    docReference, groupingCode, statusId, updatedAt, workflowStatusId, workflowStatusCode. Rivile ERP:
-    GET /v1/sale-orders.'
+  title: Advanced · List sale orders
+  description: 'List sale orders. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/sale-orders.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5786,8 +5777,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_sale_orders
-  title: 'Advanced · Sale orders: Create sale order (POST /v1/sale-orders)'
-  description: 'Create new sale order. Rivile ERP: POST /v1/sale-orders.'
+  title: Advanced · Create sale order
+  description: 'Create sale order. Rivile ERP: POST /v1/sale-orders.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5828,7 +5819,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: delete_sale_orders_id
-  title: 'Advanced · Sale orders: Delete sale order (DELETE /v1/sale-orders/{id})'
+  title: Advanced · Delete sale order
   description: 'Delete sale order. Rivile ERP: DELETE /v1/sale-orders/{id}.'
   required_scopes:
   - extension:invoke
@@ -5870,8 +5861,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_sale_orders_id
-  title: 'Advanced · Sale orders: Get sale order (GET /v1/sale-orders/{id})'
-  description: 'Returns full sale order by id. Rivile ERP: GET /v1/sale-orders/{id}.'
+  title: Advanced · Get sale order
+  description: 'Get sale order. Rivile ERP: GET /v1/sale-orders/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5908,7 +5899,7 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: patch_sale_orders_id_approve
-  title: 'Advanced · Sale orders: Approve sale order (PATCH /v1/sale-orders/{id}/approve)'
+  title: Advanced · Approve sale order
   description: 'Approve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/approve.'
   required_scopes:
   - extension:invoke
@@ -5950,8 +5941,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_orders_id_cancel_approve
-  title: 'Advanced · Sale orders: Cancel approve for sale order (PATCH /v1/sale-orders/{id}/cancel-approve)'
-  description: 'Cancel approve for sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/cancel-approve.'
+  title: Advanced · Cancel approval of sale order
+  description: 'Cancel approval of sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/cancel-approve.'
   required_scopes:
   - extension:invoke
   handler:
@@ -5992,7 +5983,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_orders_id_convert_to_order
-  title: 'Advanced · Sale orders: Convert sale order to order (PATCH /v1/sale-orders/{id}/convertToOrder)'
+  title: Advanced · Convert sale order to order
   description: 'Convert sale order to order. Rivile ERP: PATCH /v1/sale-orders/{id}/convertToOrder.'
   required_scopes:
   - extension:invoke
@@ -6034,7 +6025,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_orders_id_convert_to_proforma_invoice
-  title: 'Advanced · Sale orders: Convert sale order to proforma invoice (PATCH /v1/sale-orders/{id}/convertToProformaInvoice)'
+  title: Advanced · Convert sale order to proforma invoice
   description: 'Convert sale order to proforma invoice. Rivile ERP: PATCH /v1/sale-orders/{id}/convertToProformaInvoice.'
   required_scopes:
   - extension:invoke
@@ -6076,7 +6067,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_orders_id_convert_to_quote
-  title: 'Advanced · Sale orders: Convert sale order to quote (PATCH /v1/sale-orders/{id}/convertToQuote)'
+  title: Advanced · Convert sale order to quote
   description: 'Convert sale order to quote. Rivile ERP: PATCH /v1/sale-orders/{id}/convertToQuote.'
   required_scopes:
   - extension:invoke
@@ -6118,8 +6109,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: post_sale_orders_id_lines
-  title: 'Advanced · Sale orders: Create sale order line (POST /v1/sale-orders/{id}/lines)'
-  description: 'Create new sale order line. Rivile ERP: POST /v1/sale-orders/{id}/lines.'
+  title: Advanced · Create sale order line
+  description: 'Create sale order line. Rivile ERP: POST /v1/sale-orders/{id}/lines.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6163,7 +6154,7 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_orders_id_reserve
-  title: 'Advanced · Sale orders: Reserve sale order (PATCH /v1/sale-orders/{id}/reserve)'
+  title: Advanced · Reserve sale order
   description: 'Reserve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/reserve.'
   required_scopes:
   - extension:invoke
@@ -6205,8 +6196,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_orders_id_unreserve
-  title: 'Advanced · Sale orders: Un-reserve sale order (PATCH /v1/sale-orders/{id}/unreserve)'
-  description: 'Un-reserve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/unreserve.'
+  title: Advanced · Unreserve sale order
+  description: 'Unreserve sale order. Rivile ERP: PATCH /v1/sale-orders/{id}/unreserve.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6247,8 +6238,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: patch_sale_orders_id_workflow_status
-  title: 'Advanced · Sale orders: Update workflow status (PATCH /v1/sale-orders/{id}/workflow-status)'
-  description: 'Update workflow status. Rivile ERP: PATCH /v1/sale-orders/{id}/workflow-status.'
+  title: Advanced · Update sale order workflow status
+  description: 'Update sale order workflow status. Rivile ERP: PATCH /v1/sale-orders/{id}/workflow-status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6292,10 +6283,9 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_sale_prices
-  title: 'Advanced · Sale prices: Sale Prices (GET /v1/sale-prices)'
-  description: 'Returns sale price list. Fields available for filtering: id, validFrom, validTo, productId,
-    productCode, departmentId, departmentCode, currencyId, currencyCode, priceCategoryId, priceCategoryCode,
-    updatedAt. Rivile ERP: GET /v1/sale-prices.'
+  title: Advanced · List sale prices
+  description: 'List sale prices. Up to 100 records per page; filters accept the fields Rivile documents
+    for this list. Rivile ERP: GET /v1/sale-prices.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6352,8 +6342,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_sale_prices_id
-  title: 'Advanced · Sale prices: Get sale price (GET /v1/sale-prices/{id})'
-  description: 'Returns full sale price by id. Rivile ERP: GET /v1/sale-prices/{id}.'
+  title: Advanced · Get sale price
+  description: 'Get sale price. Rivile ERP: GET /v1/sale-prices/{id}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6390,8 +6380,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_health_status
-  title: 'Advanced · Service status:  (GET /health/status)'
-  description: '. Rivile ERP: GET /health/status.'
+  title: Advanced · Check the service status
+  description: 'Check the service status. Rivile ERP: GET /health/status.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6425,8 +6415,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_users_api_keys
-  title: 'Advanced · Service status: Validate API key (GET /v1/users/api-keys)'
-  description: 'Check if call with API key is successful. Rivile ERP: GET /v1/users/api-keys.'
+  title: Advanced · Check the API key
+  description: 'Check the API key. Rivile ERP: GET /v1/users/api-keys.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6460,9 +6450,9 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_timesheet_schedules
-  title: 'Advanced · Timesheet schedules: Timesheet schedules (GET /v1/timesheet-schedules)'
-  description: 'Returns timesheet schedule list. Fields available for filtering: id, active, code, createdAt,
-    updatedAt. Rivile ERP: GET /v1/timesheet-schedules.'
+  title: Advanced · List timesheet schedules
+  description: 'List timesheet schedules. Up to 100 records per page; filters accept the fields Rivile
+    documents for this list. Rivile ERP: GET /v1/timesheet-schedules.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6519,7 +6509,7 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_timesheet_schedules
-  title: 'Advanced · Timesheet schedules: Fill timesheet schedule (POST /v1/timesheet-schedules)'
+  title: Advanced · Fill timesheet schedule
   description: 'Fill timesheet schedule. Rivile ERP: POST /v1/timesheet-schedules.'
   required_scopes:
   - extension:invoke
@@ -6561,8 +6551,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_timesheet_schedules_id_days
-  title: 'Advanced · Timesheet schedules: Timesheet schedules days list (GET /v1/timesheet-schedules/{id}/days)'
-  description: 'Returns Timesheet schedules days. Rivile ERP: GET /v1/timesheet-schedules/{id}/days.'
+  title: Advanced · List the days of a timesheet schedule
+  description: 'List the days of a timesheet schedule. Rivile ERP: GET /v1/timesheet-schedules/{id}/days.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6605,8 +6595,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_timesheets
-  title: 'Advanced · Timesheets: Timesheet list (GET /v1/timesheets)'
-  description: 'Returns timesheet list. Rivile ERP: GET /v1/timesheets.'
+  title: Advanced · List timesheets
+  description: 'List timesheets. Rivile ERP: GET /v1/timesheets.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6655,7 +6645,7 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: post_timesheets
-  title: 'Advanced · Timesheets: Create timesheet events (POST /v1/timesheets)'
+  title: Advanced · Create timesheet events
   description: 'Create timesheet events. Rivile ERP: POST /v1/timesheets.'
   required_scopes:
   - extension:invoke
@@ -6697,8 +6687,8 @@ actions:
   - blocked_address
   - timeout_unknown
 - action_id: get_workflow_statuses_entity_type_id
-  title: 'Advanced · Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId})'
-  description: 'Returns Workflow statuses. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}.'
+  title: Advanced · List workflow statuses of a record type
+  description: 'List workflow statuses of a record type. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}.'
   required_scopes:
   - extension:invoke
   handler:
@@ -6735,8 +6725,8 @@ actions:
   - redirect_rejected
   - blocked_address
 - action_id: get_workflow_statuses_entity_type_id_company_id
-  title: 'Advanced · Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId}/{companyId})'
-  description: 'Returns Workflow statuses. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}/{companyId}.'
+  title: Advanced · List workflow statuses of a record type for a company
+  description: 'List workflow statuses of a record type for a company. Rivile ERP: GET /v1/workflow-statuses/{entityTypeId}/{companyId}.'
   required_scopes:
   - extension:invoke
   handler:

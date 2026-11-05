@@ -13,8 +13,8 @@ Rivile GAMA (the on-premise product with Manorivile-Gateway) has its own extensi
 
 | Operation | What it does |
 |---|---|
-| Find or create customer / supplier | Looks up by client code, registration code, VAT number; creates only when none matches. |
-| Create sales invoice / Create purchase invoice | Client found or created, document with lines (more than 100 lines are added one by one), optional posting; an existing number for the client is returned instead of a duplicate. |
+| Find or create customer / supplier | A client code must name an existing client; by registration code or VAT number the client is found or created. |
+| Create sales invoice / Create purchase invoice | Client found (or found or created), document with up to 100 lines, optional posting; an existing number for the client is returned (and posted if asked) instead of a duplicate. |
 | Download document file | Saves an attached file as a workflow file. |
 | Register payment | Payment received or sent, optionally linked to an invoice and posted. |
 | Find or create product | By code or barcode. |
@@ -38,11 +38,9 @@ it in `X-SessionToken`. There is no sandbox; Rivile ERP's 30-day free trial can 
   1, 2, 4 and 8 seconds; the request was not executed.
 - 400 answers (`{code, values.violations}`) become one error entry per refused field, with its
   JSON path (`lines[0].itemCode`). 401 is `authentication_failed`, 404 `not_found`.
-- Composite steps that fail part-way say exactly what was created (for example "sales invoice
-  created with lines 1–100") and are not retried.
+- Composite steps that fail part-way say exactly what was created (for example "client created;
+  sales invoice S-3 created with 12 lines; Posting failed") and are not retried.
 - The API key is removed from every answer before it is parsed or shortened.
-- Rivile bills API use per request according to a third-party source; this is not documented
-  officially.
 
 ## Assumptions not yet verified against a live Rivile ERP company
 
@@ -57,6 +55,10 @@ it in `X-SessionToken`. There is no sandbox; Rivile ERP's 30-day free trial can 
 6. A new product is created with `bomTypeId` 1 (Single); unit and barcode go into
    `productUnitOfMeasure`.
 7. Invoice lines take the header's `departmentCode` unless a line names its own.
+8. A request answered with HTTP 429 was not executed (HTTP convention; Rivile documents no rate
+   limit), so it is retried after 1, 2, 4 and 8 seconds — writes included.
+9. Which `statusId` means "posted" is not documented: an existing invoice is reported with its raw
+   `status_id` and `posted: null` unless the step posts it.
 
 ## Development
 

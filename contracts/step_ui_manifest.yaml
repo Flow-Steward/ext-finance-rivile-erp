@@ -11,61 +11,61 @@ forms:
     label: Client code
     widget_type: text
     required: false
-    help_text: Rivile ERP client code (code), looked up first; used as the new code when creating (else
-      Rivile numbers it). Several matches, or a match whose registration or VAT code differs from the
-      ones given, is an error and nothing is created. Letters, digits, spaces and . _ / - only.
+    help_text: 'The code of an existing client in Rivile ERP. When given, that client must exist: the
+      step never creates a client for a code, so a typo cannot add a second client. Letters, digits, spaces
+      and . _ / - only.'
   - name: reg_code
     label: Registration code
     widget_type: text
     required: false
-    help_text: Company registration code (regCode), looked up second. Letters, digits, spaces and . _
-      / - only.
+    help_text: The company registration code, used to find the client, or to create it when no client
+      has this code. Letters, digits, spaces and . _ / - only.
   - name: vat_number
     label: VAT number
     widget_type: text
     required: false
-    help_text: VAT payer code, e.g. LT100001234567 (vatNumber), looked up last. Letters, digits, spaces
-      and . _ / - only.
+    help_text: The VAT payer code, for example LT100001234567, used like the registration code. Letters,
+      digits, spaces and . _ / - only.
   - name: name
     label: Name
     widget_type: text
     required: false
-    help_text: Client name, needed when the client has to be created (name).
+    help_text: The client's name, needed when the client has to be created.
   - name: client_type
     label: Client type
     widget_type: select
     required: false
-    help_text: 0 — legal entity (JURIDICAL, default), 1 — individual (INDIVIDUAL); typeId.
+    help_text: 'Whether a new client is a company or a person. Default: legal entity.'
     options:
-    - label: '0'
+    - label: Legal entity
       value: 0
-    - label: '1'
+    - label: Individual
       value: 1
   - name: address
     label: Address
     widget_type: text
     required: false
-    help_text: address.
+    help_text: The address saved on a new client.
   - name: email
     label: E-mail
     widget_type: text
     required: false
-    help_text: email.
+    help_text: The e-mail address saved on a new client.
   - name: phone
     label: Phone
     widget_type: text
     required: false
-    help_text: phone.
+    help_text: The phone number saved on a new client.
   - name: is_customer
     label: Customer
     widget_type: boolean
     required: false
-    help_text: Mark the new client as a customer (isCustomer). Default true for sales.
+    help_text: 'Mark a new client as a customer. Default: yes for sales invoices.'
   - name: is_supplier
     label: Supplier
     widget_type: boolean
     required: false
-    help_text: Mark the new client as a supplier (isSupplier). Default true for purchases.
+    help_text: 'Mark a new client as a supplier. Default: yes for purchase invoices.'
 - operation_id: create_sales_invoice
   title: Create sales invoice
   fields:
@@ -73,111 +73,110 @@ forms:
     label: Client code
     widget_type: text
     required: false
-    help_text: Rivile ERP client code (code), looked up first; used as the new code when creating (else
-      Rivile numbers it). Several matches, or a match whose registration or VAT code differs from the
-      ones given, is an error and nothing is created. Letters, digits, spaces and . _ / - only.
+    help_text: 'The code of an existing client in Rivile ERP. When given, that client must exist: the
+      step never creates a client for a code, so a typo cannot add a second client. Letters, digits, spaces
+      and . _ / - only.'
   - name: reg_code
     label: Registration code
     widget_type: text
     required: false
-    help_text: Company registration code (regCode), looked up second. Letters, digits, spaces and . _
-      / - only.
+    help_text: The company registration code, used to find the client, or to create it when no client
+      has this code. Letters, digits, spaces and . _ / - only.
   - name: vat_number
     label: VAT number
     widget_type: text
     required: false
-    help_text: VAT payer code, e.g. LT100001234567 (vatNumber), looked up last. Letters, digits, spaces
-      and . _ / - only.
+    help_text: The VAT payer code, for example LT100001234567, used like the registration code. Letters,
+      digits, spaces and . _ / - only.
   - name: name
     label: Name
     widget_type: text
     required: false
-    help_text: Client name, needed when the client has to be created (name).
+    help_text: The client's name, needed when the client has to be created.
   - name: client_type
     label: Client type
     widget_type: select
     required: false
-    help_text: 0 — legal entity (JURIDICAL, default), 1 — individual (INDIVIDUAL); typeId.
+    help_text: 'Whether a new client is a company or a person. Default: legal entity.'
     options:
-    - label: '0'
+    - label: Legal entity
       value: 0
-    - label: '1'
+    - label: Individual
       value: 1
   - name: address
     label: Address
     widget_type: text
     required: false
-    help_text: address.
+    help_text: The address saved on a new client.
   - name: email
     label: E-mail
     widget_type: text
     required: false
-    help_text: email.
+    help_text: The e-mail address saved on a new client.
   - name: phone
     label: Phone
     widget_type: text
     required: false
-    help_text: phone.
+    help_text: The phone number saved on a new client.
   - name: is_customer
     label: Customer
     widget_type: boolean
     required: false
-    help_text: Mark the new client as a customer (isCustomer). Default true for sales.
+    help_text: 'Mark a new client as a customer. Default: yes for sales invoices.'
   - name: is_supplier
     label: Supplier
     widget_type: boolean
     required: false
-    help_text: Mark the new client as a supplier (isSupplier). Default true for purchases.
+    help_text: 'Mark a new client as a supplier. Default: yes for purchase invoices.'
   - name: number
     label: Number
     widget_type: text
     required: false
-    help_text: Document number (documentNo). With a number the step first looks for a sales invoice with
-      this number for this client and returns it instead of creating a second one. Without it Rivile numbers
-      the document.
+    help_text: The document number. With a number the step first looks for a sales invoice with this number
+      for this client and returns it instead of creating a second one. Without it Rivile numbers the document.
   - name: date
     label: Date
     widget_type: text
     required: false
-    help_text: 'Operation date YYYY-MM-DD (opDate). Default: Rivile''s (today).'
+    help_text: 'The operation date, YYYY-MM-DD. Default: today.'
   - name: document_date
     label: Document date
     widget_type: text
     required: false
-    help_text: 'docDate, YYYY-MM-DD. Default: date.'
+    help_text: 'The date printed on the document, YYYY-MM-DD. Default: the operation date.'
   - name: department_code
     label: Department
     widget_type: text
     required: true
-    help_text: Department (warehouse) code for every line (departmentCode). Letters, digits, spaces and
-      . _ / - only.
+    help_text: The department (warehouse) code used for every line that does not name its own. Letters,
+      digits, spaces and . _ / - only.
   - name: currency_code
     label: Currency
     widget_type: text
     required: false
-    help_text: 'Currency code, e.g. EUR (currencyCode). Default: the base currency. Letters, digits, spaces
-      and . _ / - only.'
+    help_text: 'The currency code, for example EUR. Default: the company''s base currency. Letters, digits,
+      spaces and . _ / - only.'
   - name: prices_include_tax
     label: Prices include VAT
     widget_type: boolean
     required: false
-    help_text: isTaxIncluded.
+    help_text: Whether the line prices include VAT.
   - name: notes
     label: Notes
-    widget_type: text
+    widget_type: textarea
     required: false
-    help_text: notes.
+    help_text: A note printed on the document.
   - name: lines
     label: Lines
     widget_type: json
     required: true
-    help_text: Invoice lines. Rivile takes up to 100 lines when a document is created; further lines are
-      added one by one (POST …/lines).
+    help_text: The invoice lines, 1 to 100 — Rivile's limit for creating a document in one request. For
+      more, add lines afterwards with the Advanced create-line step.
   - name: post
     label: Post
     widget_type: boolean
     required: false
-    help_text: Post the sales invoice after it is created (PATCH …/post).
+    help_text: Post the sales invoice once it is created.
 - operation_id: create_purchase_invoice
   title: Create purchase invoice
   fields:
@@ -185,111 +184,111 @@ forms:
     label: Client code
     widget_type: text
     required: false
-    help_text: Rivile ERP client code (code), looked up first; used as the new code when creating (else
-      Rivile numbers it). Several matches, or a match whose registration or VAT code differs from the
-      ones given, is an error and nothing is created. Letters, digits, spaces and . _ / - only.
+    help_text: 'The code of an existing client in Rivile ERP. When given, that client must exist: the
+      step never creates a client for a code, so a typo cannot add a second client. Letters, digits, spaces
+      and . _ / - only.'
   - name: reg_code
     label: Registration code
     widget_type: text
     required: false
-    help_text: Company registration code (regCode), looked up second. Letters, digits, spaces and . _
-      / - only.
+    help_text: The company registration code, used to find the client, or to create it when no client
+      has this code. Letters, digits, spaces and . _ / - only.
   - name: vat_number
     label: VAT number
     widget_type: text
     required: false
-    help_text: VAT payer code, e.g. LT100001234567 (vatNumber), looked up last. Letters, digits, spaces
-      and . _ / - only.
+    help_text: The VAT payer code, for example LT100001234567, used like the registration code. Letters,
+      digits, spaces and . _ / - only.
   - name: name
     label: Name
     widget_type: text
     required: false
-    help_text: Client name, needed when the client has to be created (name).
+    help_text: The client's name, needed when the client has to be created.
   - name: client_type
     label: Client type
     widget_type: select
     required: false
-    help_text: 0 — legal entity (JURIDICAL, default), 1 — individual (INDIVIDUAL); typeId.
+    help_text: 'Whether a new client is a company or a person. Default: legal entity.'
     options:
-    - label: '0'
+    - label: Legal entity
       value: 0
-    - label: '1'
+    - label: Individual
       value: 1
   - name: address
     label: Address
     widget_type: text
     required: false
-    help_text: address.
+    help_text: The address saved on a new client.
   - name: email
     label: E-mail
     widget_type: text
     required: false
-    help_text: email.
+    help_text: The e-mail address saved on a new client.
   - name: phone
     label: Phone
     widget_type: text
     required: false
-    help_text: phone.
+    help_text: The phone number saved on a new client.
   - name: is_customer
     label: Customer
     widget_type: boolean
     required: false
-    help_text: Mark the new client as a customer (isCustomer). Default true for sales.
+    help_text: 'Mark a new client as a customer. Default: yes for sales invoices.'
   - name: is_supplier
     label: Supplier
     widget_type: boolean
     required: false
-    help_text: Mark the new client as a supplier (isSupplier). Default true for purchases.
+    help_text: 'Mark a new client as a supplier. Default: yes for purchase invoices.'
   - name: number
     label: Number
     widget_type: text
     required: false
-    help_text: Document number (documentNo). With a number the step first looks for a purchase invoice
-      with this number for this client and returns it instead of creating a second one. Without it Rivile
-      numbers the document.
+    help_text: The document number. With a number the step first looks for a purchase invoice with this
+      number for this client and returns it instead of creating a second one. Without it Rivile numbers
+      the document.
   - name: date
     label: Date
     widget_type: text
     required: false
-    help_text: 'Operation date YYYY-MM-DD (opDate). Default: Rivile''s (today).'
+    help_text: 'The operation date, YYYY-MM-DD. Default: today.'
   - name: document_date
     label: Document date
     widget_type: text
     required: false
-    help_text: 'docDate, YYYY-MM-DD. Default: date.'
+    help_text: 'The date printed on the document, YYYY-MM-DD. Default: the operation date.'
   - name: department_code
     label: Department
     widget_type: text
     required: true
-    help_text: Department (warehouse) code for every line (departmentCode). Letters, digits, spaces and
-      . _ / - only.
+    help_text: The department (warehouse) code used for every line that does not name its own. Letters,
+      digits, spaces and . _ / - only.
   - name: currency_code
     label: Currency
     widget_type: text
     required: false
-    help_text: 'Currency code, e.g. EUR (currencyCode). Default: the base currency. Letters, digits, spaces
-      and . _ / - only.'
+    help_text: 'The currency code, for example EUR. Default: the company''s base currency. Letters, digits,
+      spaces and . _ / - only.'
   - name: prices_include_tax
     label: Prices include VAT
     widget_type: boolean
     required: false
-    help_text: isTaxIncluded.
+    help_text: Whether the line prices include VAT.
   - name: notes
     label: Notes
-    widget_type: text
+    widget_type: textarea
     required: false
-    help_text: notes.
+    help_text: A note printed on the document.
   - name: lines
     label: Lines
     widget_type: json
     required: true
-    help_text: Invoice lines. Rivile takes up to 100 lines when a document is created; further lines are
-      added one by one (POST …/lines).
+    help_text: The invoice lines, 1 to 100 — Rivile's limit for creating a document in one request. For
+      more, add lines afterwards with the Advanced create-line step.
   - name: post
     label: Post
     widget_type: boolean
     required: false
-    help_text: Post the purchase invoice after it is created (PATCH …/post).
+    help_text: Post the purchase invoice once it is created.
 - operation_id: download_document_file
   title: Download document file
   fields:
@@ -297,47 +296,47 @@ forms:
     label: File id
     widget_type: text
     required: false
-    help_text: The attachment id (attachments[].id).
+    help_text: The attachment's id, as listed in a document's attachments.
   - name: document_type
     label: Document type
     widget_type: select
     required: false
-    help_text: Where the attachment is.
+    help_text: The kind of record the file is attached to.
     options:
-    - label: client
+    - label: Client
       value: client
-    - label: contact
+    - label: Contact
       value: contact
-    - label: delivery
+    - label: Delivery
       value: delivery
-    - label: inventory_adjustment
+    - label: Inventory adjustment
       value: inventory_adjustment
-    - label: inventory_movement
+    - label: Inventory movement
       value: inventory_movement
-    - label: manufacture
+    - label: Manufacture
       value: manufacture
-    - label: payment
+    - label: Payment
       value: payment
-    - label: product
+    - label: Product
       value: product
-    - label: purchase_invoice
+    - label: Purchase invoice
       value: purchase_invoice
-    - label: purchase_order
+    - label: Purchase order
       value: purchase_order
-    - label: sale_invoice
+    - label: Sale invoice
       value: sale_invoice
-    - label: sale_order
+    - label: Sale order
       value: sale_order
   - name: document_id
     label: Document id
     widget_type: text
     required: false
-    help_text: The document's id (UUID).
+    help_text: The id (UUID) of the record the file is attached to.
   - name: file_name
     label: File name
     widget_type: text
     required: false
-    help_text: Pick the attachment with this name.
+    help_text: 'Take the attachment with this name. Default: the first attachment.'
 - operation_id: register_payment
   title: Register payment
   fields:
@@ -345,72 +344,72 @@ forms:
     label: Direction
     widget_type: select
     required: true
-    help_text: received (typeId 5) or sent (typeId 4).
+    help_text: Whether the money was received from the client or sent to them.
     options:
-    - label: received
+    - label: Payment received
       value: received
-    - label: sent
+    - label: Payment sent
       value: sent
   - name: client_code
     label: Client code
     widget_type: text
     required: true
-    help_text: clientCode. Letters, digits, spaces and . _ / - only.
+    help_text: The code of the client who paid or is paid. Letters, digits, spaces and . _ / - only.
   - name: amount
     label: Amount
     widget_type: text
     required: true
-    help_text: Amount in the payment currency (amountCur), e.g. 121.00.
+    help_text: The amount in the payment currency, for example 121.00.
   - name: currency_code
     label: Currency
     widget_type: text
     required: false
-    help_text: 'currencyCode. Default: the base currency. Letters, digits, spaces and . _ / - only.'
+    help_text: 'The currency code. Default: the base currency. Letters, digits, spaces and . _ / - only.'
   - name: date
     label: Date
     widget_type: text
     required: false
-    help_text: 'opDate, YYYY-MM-DD. Default: today.'
+    help_text: 'The payment date, YYYY-MM-DD. Default: today.'
   - name: account_code
     label: Money account
     widget_type: text
     required: false
-    help_text: The bank or cash account code (accountCode). Letters, digits, spaces and . _ / - only.
+    help_text: The bank or cash account code. Letters, digits, spaces and . _ / - only.
   - name: payment_method_code
     label: Payment method
     widget_type: text
     required: false
-    help_text: paymentMethodCode. Letters, digits, spaces and . _ / - only.
+    help_text: The payment method code. Letters, digits, spaces and . _ / - only.
   - name: document_no
     label: Number
     widget_type: text
     required: false
-    help_text: documentNo.
+    help_text: The payment document number.
   - name: purpose
     label: Purpose
-    widget_type: text
+    widget_type: textarea
     required: false
-    help_text: purposeText.
+    help_text: The payment purpose text.
   - name: invoice_id
     label: Invoice id
     widget_type: text
     required: false
-    help_text: Link the payment to this invoice (UUID).
+    help_text: Link the payment to the invoice with this id (UUID).
   - name: invoice_type
     label: Invoice type
     widget_type: select
     required: false
-    help_text: sale_invoice (default for received) or purchase_invoice.
+    help_text: 'The kind of invoice to link. Default: sales invoice for money received.'
     options:
-    - label: sale_invoice
+    - label: Sales invoice
       value: sale_invoice
-    - label: purchase_invoice
+    - label: Purchase invoice
       value: purchase_invoice
   - name: post
     label: Post
     widget_type: boolean
     required: false
-    help_text: Post the payment (PATCH /v1/payments/{id}/post).
+    help_text: Post the payment once it is created.
 - operation_id: find_or_create_product
   title: Find or create product
   fields:
@@ -418,38 +417,39 @@ forms:
     label: Product code
     widget_type: text
     required: false
-    help_text: code; used as the new code when creating. Letters, digits, spaces and . _ / - only.
+    help_text: The product code, looked up first and used as the code of a new product. Letters, digits,
+      spaces and . _ / - only.
   - name: barcode
     label: Barcode
     widget_type: text
     required: false
-    help_text: mainBarcode. Letters, digits, spaces and . _ / - only.
+    help_text: The main barcode, looked up second. Letters, digits, spaces and . _ / - only.
   - name: name
     label: Name
     widget_type: text
     required: false
-    help_text: Needed when the product has to be created.
+    help_text: The product name, needed when it has to be created.
   - name: product_type
     label: Product type
     widget_type: select
     required: false
-    help_text: 1 — product (default), 2 — service; productTypeId.
+    help_text: 'Whether a new product is a stocked product or a service. Default: product.'
     options:
-    - label: '1'
+    - label: Product
       value: 1
-    - label: '2'
+    - label: Service
       value: 2
   - name: unit
     label: Unit
     widget_type: text
     required: false
-    help_text: Unit of measure code for a new product, e.g. VNT (uomCode). Letters, digits, spaces and
+    help_text: The unit of measure code for a new product, for example VNT. Letters, digits, spaces and
       . _ / - only.
   - name: description
     label: Description
-    widget_type: text
+    widget_type: textarea
     required: false
-    help_text: description.
+    help_text: A description saved on a new product.
 - operation_id: stock_levels
   title: Stock levels
   fields:
@@ -457,17 +457,17 @@ forms:
     label: Product code
     widget_type: text
     required: false
-    help_text: productCode. Letters, digits, spaces and . _ / - only.
+    help_text: 'Only this product. Default: all products. Letters, digits, spaces and . _ / - only.'
   - name: department_code
     label: Department
     widget_type: text
     required: false
-    help_text: departmentCode (warehouse). Letters, digits, spaces and . _ / - only.
+    help_text: Only this department (warehouse). Letters, digits, spaces and . _ / - only.
   - name: max_pages
     label: Max pages
     widget_type: number
     required: false
-    help_text: Pages of 100 records to read. Default 10.
+    help_text: How many pages of 100 records to read at most. Default 10.
 - operation_id: product_prices
   title: Product prices
   fields:
@@ -475,22 +475,22 @@ forms:
     label: Product code
     widget_type: text
     required: true
-    help_text: productCode. Letters, digits, spaces and . _ / - only.
+    help_text: The product whose prices to read. Letters, digits, spaces and . _ / - only.
   - name: price_category_code
     label: Price category
     widget_type: text
     required: false
-    help_text: priceCategoryCode. Letters, digits, spaces and . _ / - only.
+    help_text: Only prices of this price category. Letters, digits, spaces and . _ / - only.
   - name: currency_code
     label: Currency
     widget_type: text
     required: false
-    help_text: currencyCode. Letters, digits, spaces and . _ / - only.
+    help_text: Only prices in this currency. Letters, digits, spaces and . _ / - only.
   - name: department_code
     label: Department
     widget_type: text
     required: false
-    help_text: departmentCode. Letters, digits, spaces and . _ / - only.
+    help_text: Only prices of this department. Letters, digits, spaces and . _ / - only.
 - operation_id: changes_since
   title: Changes since
   fields:
@@ -498,50 +498,55 @@ forms:
     label: What
     widget_type: select
     required: true
-    help_text: The list to read.
+    help_text: The kind of records to read.
     options:
-    - label: clients
+    - label: Clients
       value: clients
-    - label: contacts
+    - label: Contacts
       value: contacts
-    - label: deliveries
+    - label: Deliveries
       value: deliveries
-    - label: employees
+    - label: Employees
       value: employees
-    - label: gift_cards
+    - label: Gift cards
       value: gift_cards
-    - label: inventory_adjustments
+    - label: Inventory adjustments
       value: inventory_adjustments
-    - label: inventory_movements
+    - label: Inventory movements
       value: inventory_movements
-    - label: lots
+    - label: Lots
       value: lots
-    - label: manufactures
+    - label: Manufactures
       value: manufactures
-    - label: products
+    - label: Products
       value: products
-    - label: purchase_invoices
+    - label: Purchase invoices
       value: purchase_invoices
-    - label: purchase_orders
+    - label: Purchase orders
       value: purchase_orders
-    - label: sale_invoices
+    - label: Sale invoices
       value: sale_invoices
-    - label: sale_orders
+    - label: Sale orders
       value: sale_orders
-    - label: sale_prices
+    - label: Sale prices
       value: sale_prices
-    - label: timesheet_schedules
+    - label: Timesheet schedules
       value: timesheet_schedules
   - name: since
     label: Since
     widget_type: text
     required: true
-    help_text: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS(.SSS)Z.
+    help_text: 'Read records changed after this moment: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.SSSZ.'
+  - name: page
+    label: Page
+    widget_type: number
+    required: false
+    help_text: The page to start from, counted from 0; pass next_page to continue.
   - name: max_pages
     label: Max pages
     widget_type: number
     required: false
-    help_text: Pages of 100 records to read. Default 10.
+    help_text: How many pages of 100 records to read at most. Default 10.
 - operation_id: client_debt
   title: Client debt
   fields:
@@ -549,14 +554,14 @@ forms:
     label: Client code
     widget_type: text
     required: true
-    help_text: clientCode. Letters, digits, spaces and . _ / - only.
+    help_text: The client whose open amounts to read. Letters, digits, spaces and . _ / - only.
   - name: max_pages
     label: Max pages
     widget_type: number
     required: false
-    help_text: Pages of 100 records to read. Default 10.
+    help_text: How many pages of 100 records to read at most. Default 10.
 - operation_id: get_clients
-  title: 'Advanced · Clients: Clients (GET /v1/clients)'
+  title: Advanced · List clients
   fields:
   - name: filters
     label: Filters
@@ -587,7 +592,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_clients
-  title: 'Advanced · Clients: Create client (POST /v1/clients)'
+  title: Advanced · Create client
   fields:
   - name: body
     label: Body
@@ -597,21 +602,21 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_clients_id
-  title: 'Advanced · Clients: Get client (GET /v1/clients/{id})'
+  title: Advanced · Get client
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_clients_id
-  title: 'Advanced · Clients: Update client (PATCH /v1/clients/{id})'
+  title: Advanced · Update client
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -620,13 +625,13 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_clients_id_workflow_status
-  title: 'Advanced · Clients: Update workflow status (PATCH /v1/clients/{id}/workflow-status)'
+  title: Advanced · Update client workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -635,7 +640,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_contacts
-  title: 'Advanced · Contacts: Contacts (GET /v1/contacts)'
+  title: Advanced · List contacts
   fields:
   - name: filters
     label: Filters
@@ -665,7 +670,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_contacts
-  title: 'Advanced · Contacts: Create contact (POST /v1/contacts)'
+  title: Advanced · Create contact
   fields:
   - name: body
     label: Body
@@ -675,21 +680,21 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_contacts_id
-  title: 'Advanced · Contacts: Get contact (GET /v1/contacts/{id})'
+  title: Advanced · Get contact
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_contacts_id
-  title: 'Advanced · Contacts: Update contact (PATCH /v1/contacts/{id})'
+  title: Advanced · Update contact
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -698,7 +703,7 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_deliveries
-  title: 'Advanced · Deliveries: Deliveries list (GET /v1/deliveries)'
+  title: Advanced · List deliveries
   fields:
   - name: filters
     label: Filters
@@ -729,7 +734,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_deliveries
-  title: 'Advanced · Deliveries: Create delivery (POST /v1/deliveries)'
+  title: Advanced · Create delivery
   fields:
   - name: body
     label: Body
@@ -739,29 +744,29 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_deliveries_delivery_id
-  title: 'Advanced · Deliveries: Delete delivery (DELETE /v1/deliveries/{deliveryId})'
+  title: Advanced · Delete delivery
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_deliveries_delivery_id
-  title: 'Advanced · Deliveries: Get delivery (GET /v1/deliveries/{deliveryId})'
+  title: Advanced · Get delivery
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_deliveries_delivery_id
-  title: 'Advanced · Deliveries: Update delivery (PATCH /v1/deliveries/{deliveryId})'
+  title: Advanced · Update delivery
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -770,13 +775,13 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: post_deliveries_delivery_id_lines
-  title: 'Advanced · Deliveries: Create delivery line (POST /v1/deliveries/{deliveryId}/lines)'
+  title: Advanced · Create delivery line
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -785,44 +790,44 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_deliveries_delivery_id_lines_line_id
-  title: 'Advanced · Deliveries: Delete delivery line (DELETE /v1/deliveries/{deliveryId}/lines/{lineId})'
+  title: Advanced · Delete delivery line
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
   - name: line_id
     label: Line id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The line's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_deliveries_delivery_id_lines_line_id
-  title: 'Advanced · Deliveries: Get delivery line (GET /v1/deliveries/{deliveryId}/lines/{lineId})'
+  title: Advanced · Get delivery line
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
   - name: line_id
     label: Line id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The line's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_deliveries_delivery_id_lines_line_id
-  title: 'Advanced · Deliveries: Update delivery line (PATCH /v1/deliveries/{deliveryId}/lines/{lineId})'
+  title: Advanced · Update delivery line
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
   - name: line_id
     label: Line id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The line's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -831,18 +836,18 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_deliveries_delivery_id_lines_line_id_workflow_status
-  title: 'Advanced · Deliveries: Update delivery line workflow status (PATCH /v1/deliveries/{deliveryId}/lines/{lineId}/workflow-status)'
+  title: Advanced · Update delivery line workflow status
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
   - name: line_id
     label: Line id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The line's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -851,29 +856,29 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_deliveries_delivery_id_post
-  title: 'Advanced · Deliveries: Post delivery (PATCH /v1/deliveries/{deliveryId}/post)'
+  title: Advanced · Post delivery
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_deliveries_delivery_id_unpost
-  title: 'Advanced · Deliveries: UnPost delivery (PATCH /v1/deliveries/{deliveryId}/unpost)'
+  title: Advanced · Unpost delivery
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_deliveries_delivery_id_workflow_status
-  title: 'Advanced · Deliveries: Update delivery workflow status (PATCH /v1/deliveries/{deliveryId}/workflow-status)'
+  title: Advanced · Update delivery workflow status
   fields:
   - name: delivery_id
     label: Delivery id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The delivery's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -882,7 +887,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_employees
-  title: 'Advanced · Employees: Employee and agreements (GET /v1/employees)'
+  title: Advanced · List employees with their agreements
   fields:
   - name: filters
     label: Filters
@@ -912,15 +917,15 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: get_files_id_content
-  title: 'Advanced · Files: Get file content (GET /v1/files/{id}/content)'
+  title: Advanced · Get file content
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_gift_cards
-  title: 'Advanced · Gift cards: Gift cards (GET /v1/gift-cards)'
+  title: Advanced · List gift cards
   fields:
   - name: filters
     label: Filters
@@ -950,7 +955,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_gift_cards
-  title: 'Advanced · Gift cards: Create gift card (POST /v1/gift-cards)'
+  title: Advanced · Create gift card
   fields:
   - name: body
     label: Body
@@ -960,21 +965,21 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_gift_cards_id
-  title: 'Advanced · Gift cards: Get gift card (GET /v1/gift-cards/{id})'
+  title: Advanced · Get gift card
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_gift_cards_id
-  title: 'Advanced · Gift cards: Update gift card (PATCH /v1/gift-cards/{id})'
+  title: Advanced · Update gift card
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -983,13 +988,13 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_gift_cards_id_activate
-  title: 'Advanced · Gift cards: Activate gift card (PATCH /v1/gift-cards/{id}/activate)'
+  title: Advanced · Activate gift card
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -998,23 +1003,23 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_gift_cards_id_cancel
-  title: 'Advanced · Gift cards: Cancel gift card (PATCH /v1/gift-cards/{id}/cancel)'
+  title: Advanced · Cancel gift card
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_gift_cards_id_undo_cancellation
-  title: 'Advanced · Gift cards: Undo cancellation gift card (PATCH /v1/gift-cards/{id}/undo-cancellation)'
+  title: Advanced · Undo cancellation of gift card
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_inventory_adjustments
-  title: 'Advanced · Inventory adjustments: Inventory adjustments list (GET /v1/inventory-adjustments)'
+  title: Advanced · List inventory adjustments
   fields:
   - name: filters
     label: Filters
@@ -1045,7 +1050,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_inventory_adjustments
-  title: 'Advanced · Inventory adjustments: Create inventory adjustment (POST /v1/inventory-adjustments)'
+  title: Advanced · Create inventory adjustment
   fields:
   - name: body
     label: Body
@@ -1055,29 +1060,29 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_inventory_adjustments_id
-  title: 'Advanced · Inventory adjustments: Delete inventory adjustment (DELETE /v1/inventory-adjustments/{id})'
+  title: Advanced · Delete inventory adjustment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_inventory_adjustments_id
-  title: 'Advanced · Inventory adjustments: Get inventory adjustment (GET /v1/inventory-adjustments/{id})'
+  title: Advanced · Get inventory adjustment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: post_inventory_adjustments_id_lines
-  title: 'Advanced · Inventory adjustments: Create inventory adjustment line (POST /v1/inventory-adjustments/{id}/lines)'
+  title: Advanced · Create inventory adjustment line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1086,23 +1091,23 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_inventory_adjustments_id_post
-  title: 'Advanced · Inventory adjustments: Post inventory adjustment (PATCH /v1/inventory-adjustments/{id}/post)'
+  title: Advanced · Post inventory adjustment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_inventory_adjustments_id_unpost
-  title: 'Advanced · Inventory adjustments: UnPost inventory adjustment (PATCH /v1/inventory-adjustments/{id}/unpost)'
+  title: Advanced · Unpost inventory adjustment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_inventory_movements
-  title: 'Advanced · Inventory movements: Inventory movements list (GET /v1/inventory-movements)'
+  title: Advanced · List inventory movements
   fields:
   - name: filters
     label: Filters
@@ -1133,7 +1138,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_inventory_movements
-  title: 'Advanced · Inventory movements: Create inventory movement (POST /v1/inventory-movements)'
+  title: Advanced · Create inventory movement
   fields:
   - name: body
     label: Body
@@ -1143,29 +1148,29 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_inventory_movements_id
-  title: 'Advanced · Inventory movements: Delete inventory movement (DELETE /v1/inventory-movements/{id})'
+  title: Advanced · Delete inventory movement
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_inventory_movements_id
-  title: 'Advanced · Inventory movements: Get inventory movement (GET /v1/inventory-movements/{id})'
+  title: Advanced · Get inventory movement
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: post_inventory_movements_id_lines
-  title: 'Advanced · Inventory movements: Create inventory movement line (POST /v1/inventory-movements/{id}/lines)'
+  title: Advanced · Create inventory movement line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1174,29 +1179,29 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_inventory_movements_id_post
-  title: 'Advanced · Inventory movements: Post inventory movement (PATCH /v1/inventory-movements/{id}/post)'
+  title: Advanced · Post inventory movement
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_inventory_movements_id_unpost
-  title: 'Advanced · Inventory movements: UnPost inventory movement (PATCH /v1/inventory-movements/{id}/unpost)'
+  title: Advanced · Unpost inventory movement
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_inventory_movements_id_workflow_status
-  title: 'Advanced · Inventory movements: Update workflow status (PATCH /v1/inventory-movements/{id}/workflow-status)'
+  title: Advanced · Update inventory movement workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1205,7 +1210,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_inventory_stocks
-  title: 'Advanced · Inventory stock: Inventory stock (GET /v1/inventory-stocks)'
+  title: Advanced · List inventory stock
   fields:
   - name: filters
     label: Filters
@@ -1236,7 +1241,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: get_lots
-  title: 'Advanced · Lots: Lots (GET /v1/lots)'
+  title: Advanced · List lots
   fields:
   - name: filters
     label: Filters
@@ -1266,7 +1271,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_lots
-  title: 'Advanced · Lots: Create lot (POST /v1/lots)'
+  title: Advanced · Create lot
   fields:
   - name: body
     label: Body
@@ -1276,21 +1281,21 @@ forms:
       OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_lots_id
-  title: 'Advanced · Lots: Get lot (GET /v1/lots/{id})'
+  title: Advanced · Get lot
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_lots_id
-  title: 'Advanced · Lots: Update lot (PATCH /v1/lots/{id})'
+  title: Advanced · Update lot
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1299,7 +1304,7 @@ forms:
       OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_manufactures
-  title: 'Advanced · Manufacturing: Manufactures list (GET /v1/manufactures)'
+  title: Advanced · List manufactures
   fields:
   - name: filters
     label: Filters
@@ -1330,7 +1335,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_manufactures
-  title: 'Advanced · Manufacturing: Create manufacture (POST /v1/manufactures)'
+  title: Advanced · Create manufacture
   fields:
   - name: body
     label: Body
@@ -1340,29 +1345,29 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_manufactures_id
-  title: 'Advanced · Manufacturing: Delete manufacture (DELETE /v1/manufactures/{id})'
+  title: Advanced · Delete manufacture
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_manufactures_id
-  title: 'Advanced · Manufacturing: Get manufacture (GET /v1/manufactures/{id})'
+  title: Advanced · Get manufacture
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: post_manufactures_id_lines
-  title: 'Advanced · Manufacturing: Create manufacture line (POST /v1/manufactures/{id}/lines)'
+  title: Advanced · Create manufacture line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1371,29 +1376,29 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_manufactures_id_post
-  title: 'Advanced · Manufacturing: Post manufacture (PATCH /v1/manufactures/{id}/post)'
+  title: Advanced · Post manufacture
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_manufactures_id_unpost
-  title: 'Advanced · Manufacturing: UnPost manufacture (PATCH /v1/manufactures/{id}/unpost)'
+  title: Advanced · Unpost manufacture
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_manufactures_id_workflow_status
-  title: 'Advanced · Manufacturing: Update workflow status (PATCH /v1/manufactures/{id}/workflow-status)'
+  title: Advanced · Update manufacture workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1402,7 +1407,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_payments
-  title: 'Advanced · Payments: Payments (GET /v1/payments)'
+  title: Advanced · List payments
   fields:
   - name: filters
     label: Filters
@@ -1433,7 +1438,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_payments
-  title: 'Advanced · Payments: Create payment (POST /v1/payments)'
+  title: Advanced · Create payment
   fields:
   - name: body
     label: Body
@@ -1443,29 +1448,29 @@ forms:
       OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_payments_id
-  title: 'Advanced · Payments: Get payment (GET /v1/payments/{id})'
+  title: Advanced · Get payment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_payments_id_cancel
-  title: 'Advanced · Payments: Cancel payment (PATCH /v1/payments/{id}/cancel)'
+  title: Advanced · Cancel payment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_payments_id_link_payment
-  title: 'Advanced · Payments: Link payment (PATCH /v1/payments/{id}/link-payment)'
+  title: Advanced · Link payment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1474,37 +1479,37 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_payments_id_post
-  title: 'Advanced · Payments: Post payment (PATCH /v1/payments/{id}/post)'
+  title: Advanced · Post payment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_payments_id_undo_cancellation
-  title: 'Advanced · Payments: Undo cancellation payment (PATCH /v1/payments/{id}/undo-cancellation)'
+  title: Advanced · Undo cancellation of payment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_payments_id_unpost
-  title: 'Advanced · Payments: UnPost payment (PATCH /v1/payments/{id}/unpost)'
+  title: Advanced · Unpost payment
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_payments_id_workflow_status
-  title: 'Advanced · Payments: Update workflow status (PATCH /v1/payments/{id}/workflow-status)'
+  title: Advanced · Update payment workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1513,7 +1518,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_products
-  title: 'Advanced · Products: Products (GET /v1/products)'
+  title: Advanced · List products
   fields:
   - name: filters
     label: Filters
@@ -1544,7 +1549,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_products
-  title: 'Advanced · Products: Create product (POST /v1/products)'
+  title: Advanced · Create product
   fields:
   - name: body
     label: Body
@@ -1554,13 +1559,13 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_products_product_uom_id
-  title: 'Advanced · Products: Update product unit of measure (PATCH /v1/products/product-uom/{id})'
+  title: Advanced · Update product unit of measure
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1569,21 +1574,21 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_products_id
-  title: 'Advanced · Products: Get product (GET /v1/products/{id})'
+  title: Advanced · Get product
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_products_id
-  title: 'Advanced · Products: Update product (PATCH /v1/products/{id})'
+  title: Advanced · Update product
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1592,13 +1597,13 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: post_products_id_price
-  title: 'Advanced · Products: Create product price (POST /v1/products/{id}/price)'
+  title: Advanced · Create product price
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1607,13 +1612,13 @@ forms:
       the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: post_products_id_product_uom
-  title: 'Advanced · Products: Create product unit of measure (POST /v1/products/{id}/product-uom)'
+  title: Advanced · Create product unit of measure
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1622,13 +1627,13 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_products_id_workflow_status
-  title: 'Advanced · Products: Update workflow status (PATCH /v1/products/{id}/workflow-status)'
+  title: Advanced · Update product workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1637,7 +1642,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_purchase_invoices
-  title: 'Advanced · Purchase invoices: Purchase invoices list (GET /v1/purchase-invoices)'
+  title: Advanced · List purchase invoices
   fields:
   - name: filters
     label: Filters
@@ -1668,7 +1673,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_purchase_invoices
-  title: 'Advanced · Purchase invoices: Create purchase invoice (POST /v1/purchase-invoices)'
+  title: Advanced · Create purchase invoice
   fields:
   - name: body
     label: Body
@@ -1678,13 +1683,13 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: post_purchase_invoices_from_purchase_order_id
-  title: 'Advanced · Purchase invoices: Create purchase invoice from order (POST /v1/purchase-invoices/from/purchase-order/{id})'
+  title: Advanced · Create purchase invoice from order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1693,37 +1698,37 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_purchase_invoices_id
-  title: 'Advanced · Purchase invoices: Delete purchase invoice (DELETE /v1/purchase-invoices/{id})'
+  title: Advanced · Delete purchase invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_purchase_invoices_id
-  title: 'Advanced · Purchase invoices: Get purchase invoice (GET /v1/purchase-invoices/{id})'
+  title: Advanced · Get purchase invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_purchase_invoices_id_cancel
-  title: 'Advanced · Purchase invoices: Cancel purchase invoice (PATCH /v1/purchase-invoices/{id}/cancel)'
+  title: Advanced · Cancel purchase invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: post_purchase_invoices_id_fixed_payments
-  title: 'Advanced · Purchase invoices: Create fixed payment for purchase invoice (POST /v1/purchase-invoices/{id}/fixed-payments)'
+  title: Advanced · Create fixed payment for purchase invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1732,13 +1737,13 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: post_purchase_invoices_id_lines
-  title: 'Advanced · Purchase invoices: Create purchase invoice line (POST /v1/purchase-invoices/{id}/lines)'
+  title: Advanced · Create purchase invoice line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1747,37 +1752,37 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_purchase_invoices_id_post
-  title: 'Advanced · Purchase invoices: Post purchase invoice (PATCH /v1/purchase-invoices/{id}/post)'
+  title: Advanced · Post purchase invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_purchase_invoices_id_undo_cancellation
-  title: 'Advanced · Purchase invoices: Undo cancellation purchase invoice (PATCH /v1/purchase-invoices/{id}/undo-cancellation)'
+  title: Advanced · Undo cancellation of purchase invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_purchase_invoices_id_unpost
-  title: 'Advanced · Purchase invoices: UnPost purchase invoice (PATCH /v1/purchase-invoices/{id}/unpost)'
+  title: Advanced · Unpost purchase invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_purchase_invoices_id_workflow_status
-  title: 'Advanced · Purchase invoices: Update workflow status (PATCH /v1/purchase-invoices/{id}/workflow-status)'
+  title: Advanced · Update purchase invoice workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1786,7 +1791,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_purchase_orders
-  title: 'Advanced · Purchase orders: Purchase orders list (GET /v1/purchase-orders)'
+  title: Advanced · List purchase orders
   fields:
   - name: filters
     label: Filters
@@ -1817,7 +1822,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_purchase_orders
-  title: 'Advanced · Purchase orders: Create purchase order (POST /v1/purchase-orders)'
+  title: Advanced · Create purchase order
   fields:
   - name: body
     label: Body
@@ -1827,53 +1832,53 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_purchase_orders_lines_id
-  title: 'Advanced · Purchase orders: Get purchase order line (GET /v1/purchase-orders/lines/{id})'
+  title: Advanced · Get purchase order line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: delete_purchase_orders_id
-  title: 'Advanced · Purchase orders: Delete purchase order (DELETE /v1/purchase-orders/{id})'
+  title: Advanced · Delete purchase order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_purchase_orders_id
-  title: 'Advanced · Purchase orders: Get purchase order (GET /v1/purchase-orders/{id})'
+  title: Advanced · Get purchase order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_purchase_orders_id_approve
-  title: 'Advanced · Purchase orders: Approve purchase order (PATCH /v1/purchase-orders/{id}/approve)'
+  title: Advanced · Approve purchase order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_purchase_orders_id_cancel_approve
-  title: 'Advanced · Purchase orders: Cancel approve purchase order (PATCH /v1/purchase-orders/{id}/cancel-approve)'
+  title: Advanced · Cancel approval of purchase order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: post_purchase_orders_id_lines
-  title: 'Advanced · Purchase orders: Create purchase order line (POST /v1/purchase-orders/{id}/lines)'
+  title: Advanced · Create purchase order line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1882,13 +1887,13 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_purchase_orders_id_workflow_status
-  title: 'Advanced · Purchase orders: Update workflow status (PATCH /v1/purchase-orders/{id}/workflow-status)'
+  title: Advanced · Update purchase order workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1897,7 +1902,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_pr_registries
-  title: 'Advanced · Receivables and payables: PR registry (GET /v1/pr-registries)'
+  title: Advanced · List receivables and payables
   fields:
   - name: filters
     label: Filters
@@ -1927,7 +1932,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: get_sale_invoices
-  title: 'Advanced · Sale invoices: Sale invoices list (GET /v1/sale-invoices)'
+  title: Advanced · List sale invoices
   fields:
   - name: filters
     label: Filters
@@ -1958,7 +1963,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_sale_invoices
-  title: 'Advanced · Sale invoices: Create sale invoice (POST /v1/sale-invoices)'
+  title: Advanced · Create sale invoice
   fields:
   - name: body
     label: Body
@@ -1968,13 +1973,13 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: post_sale_invoices_from_sale_order_id
-  title: 'Advanced · Sale invoices: Create sale invoice from order (POST /v1/sale-invoices/from/sale-order/{id})'
+  title: Advanced · Create sale invoice from order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -1983,37 +1988,37 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_sale_invoices_id
-  title: 'Advanced · Sale invoices: Delete sale invoice (DELETE /v1/sale-invoices/{id})'
+  title: Advanced · Delete sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_sale_invoices_id
-  title: 'Advanced · Sale invoices: Get sale invoice (GET /v1/sale-invoices/{id})'
+  title: Advanced · Get sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_invoices_id_cancel
-  title: 'Advanced · Sale invoices: Cancel sale invoice (PATCH /v1/sale-invoices/{id}/cancel)'
+  title: Advanced · Cancel sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: post_sale_invoices_id_fixed_payments
-  title: 'Advanced · Sale invoices: Create fixed payment for sale invoice (POST /v1/sale-invoices/{id}/fixed-payments)'
+  title: Advanced · Create fixed payment for sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -2022,13 +2027,13 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: post_sale_invoices_id_lines
-  title: 'Advanced · Sale invoices: Create sale invoice line (POST /v1/sale-invoices/{id}/lines)'
+  title: Advanced · Create sale invoice line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -2037,53 +2042,53 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_sale_invoices_id_post
-  title: 'Advanced · Sale invoices: Post sale invoice (PATCH /v1/sale-invoices/{id}/post)'
+  title: Advanced · Post sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_invoices_id_reserve
-  title: 'Advanced · Sale invoices: Reserve qty sale invoice (PATCH /v1/sale-invoices/{id}/reserve)'
+  title: Advanced · Reserve quantities for sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_invoices_id_undo_cancellation
-  title: 'Advanced · Sale invoices: Undo cancellation sale invoice (PATCH /v1/sale-invoices/{id}/undo-cancellation)'
+  title: Advanced · Undo cancellation of sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_invoices_id_unpost
-  title: 'Advanced · Sale invoices: UnPost sale invoice (PATCH /v1/sale-invoices/{id}/unpost)'
+  title: Advanced · Unpost sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_invoices_id_unreserve
-  title: 'Advanced · Sale invoices: UnReserve qty sale invoice (PATCH /v1/sale-invoices/{id}/unreserve)'
+  title: Advanced · Unreserve quantities for sale invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_invoices_id_workflow_status
-  title: 'Advanced · Sale invoices: Update workflow status (PATCH /v1/sale-invoices/{id}/workflow-status)'
+  title: Advanced · Update sale invoice workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -2092,7 +2097,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_sale_orders
-  title: 'Advanced · Sale orders: Sale orders list (GET /v1/sale-orders)'
+  title: Advanced · List sale orders
   fields:
   - name: filters
     label: Filters
@@ -2123,7 +2128,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_sale_orders
-  title: 'Advanced · Sale orders: Create sale order (POST /v1/sale-orders)'
+  title: Advanced · Create sale order
   fields:
   - name: body
     label: Body
@@ -2133,69 +2138,69 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: delete_sale_orders_id
-  title: 'Advanced · Sale orders: Delete sale order (DELETE /v1/sale-orders/{id})'
+  title: Advanced · Delete sale order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_sale_orders_id
-  title: 'Advanced · Sale orders: Get sale order (GET /v1/sale-orders/{id})'
+  title: Advanced · Get sale order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_orders_id_approve
-  title: 'Advanced · Sale orders: Approve sale order (PATCH /v1/sale-orders/{id}/approve)'
+  title: Advanced · Approve sale order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_orders_id_cancel_approve
-  title: 'Advanced · Sale orders: Cancel approve for sale order (PATCH /v1/sale-orders/{id}/cancel-approve)'
+  title: Advanced · Cancel approval of sale order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_orders_id_convert_to_order
-  title: 'Advanced · Sale orders: Convert sale order to order (PATCH /v1/sale-orders/{id}/convertToOrder)'
+  title: Advanced · Convert sale order to order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_orders_id_convert_to_proforma_invoice
-  title: 'Advanced · Sale orders: Convert sale order to proforma invoice (PATCH /v1/sale-orders/{id}/convertToProformaInvoice)'
+  title: Advanced · Convert sale order to proforma invoice
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_orders_id_convert_to_quote
-  title: 'Advanced · Sale orders: Convert sale order to quote (PATCH /v1/sale-orders/{id}/convertToQuote)'
+  title: Advanced · Convert sale order to quote
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: post_sale_orders_id_lines
-  title: 'Advanced · Sale orders: Create sale order line (POST /v1/sale-orders/{id}/lines)'
+  title: Advanced · Create sale order line
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -2204,29 +2209,29 @@ forms:
       in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: patch_sale_orders_id_reserve
-  title: 'Advanced · Sale orders: Reserve sale order (PATCH /v1/sale-orders/{id}/reserve)'
+  title: Advanced · Reserve sale order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_orders_id_unreserve
-  title: 'Advanced · Sale orders: Un-reserve sale order (PATCH /v1/sale-orders/{id}/unreserve)'
+  title: Advanced · Unreserve sale order
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: patch_sale_orders_id_workflow_status
-  title: 'Advanced · Sale orders: Update workflow status (PATCH /v1/sale-orders/{id}/workflow-status)'
+  title: Advanced · Update sale order workflow status
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: body
     label: Body
     widget_type: json
@@ -2235,7 +2240,7 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_sale_prices
-  title: 'Advanced · Sale prices: Sale Prices (GET /v1/sale-prices)'
+  title: Advanced · List sale prices
   fields:
   - name: filters
     label: Filters
@@ -2265,21 +2270,21 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: get_sale_prices_id
-  title: 'Advanced · Sale prices: Get sale price (GET /v1/sale-prices/{id})'
+  title: Advanced · Get sale price
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_health_status
-  title: 'Advanced · Service status:  (GET /health/status)'
+  title: Advanced · Check the service status
   fields: []
 - operation_id: get_users_api_keys
-  title: 'Advanced · Service status: Validate API key (GET /v1/users/api-keys)'
+  title: Advanced · Check the API key
   fields: []
 - operation_id: get_timesheet_schedules
-  title: 'Advanced · Timesheet schedules: Timesheet schedules (GET /v1/timesheet-schedules)'
+  title: Advanced · List timesheet schedules
   fields:
   - name: filters
     label: Filters
@@ -2308,7 +2313,7 @@ forms:
     required: false
     help_text: Upper bound for fetch_all_pages. Default 10.
 - operation_id: post_timesheet_schedules
-  title: 'Advanced · Timesheet schedules: Fill timesheet schedule (POST /v1/timesheet-schedules)'
+  title: Advanced · Fill timesheet schedule
   fields:
   - name: body
     label: Body
@@ -2318,53 +2323,53 @@ forms:
       as in the OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_timesheet_schedules_id_days
-  title: 'Advanced · Timesheet schedules: Timesheet schedules days list (GET /v1/timesheet-schedules/{id}/days)'
+  title: Advanced · List the days of a timesheet schedule
   fields:
   - name: id
     label: Id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The record's id (a UUID), as Rivile ERP returns it in its id field.
   - name: date_from
     label: Date from
     widget_type: text
     required: true
-    help_text: dateFrom
+    help_text: The first day to read, YYYY-MM-DD.
   - name: date_to
     label: Date to
     widget_type: text
     required: true
-    help_text: dateTo
+    help_text: The last day to read, YYYY-MM-DD.
 - operation_id: get_timesheets
-  title: 'Advanced · Timesheets: Timesheet list (GET /v1/timesheets)'
+  title: Advanced · List timesheets
   fields:
   - name: calendar_period_code
     label: Calendar period code
     widget_type: text
     required: true
-    help_text: Calendar period code
+    help_text: The calendar period whose timesheets to read.
   - name: employee_agreement_code
     label: Employee agreement code
     widget_type: text
     required: false
-    help_text: Employee agreement code
+    help_text: Only timesheets of this employment agreement.
   - name: employee_code
     label: Employee code
     widget_type: text
     required: false
-    help_text: Employee code
+    help_text: Only timesheets of this employee.
   - name: employee_position_code
     label: Employee position code
     widget_type: text
     required: false
-    help_text: Employee position code
+    help_text: Only timesheets of this position.
   - name: department_code
     label: Department code
     widget_type: text
     required: false
-    help_text: Employee department code
+    help_text: Only timesheets of employees in this department.
 - operation_id: post_timesheets
-  title: 'Advanced · Timesheets: Create timesheet events (POST /v1/timesheets)'
+  title: Advanced · Create timesheet events
   fields:
   - name: body
     label: Body
@@ -2374,26 +2379,26 @@ forms:
       OpenAPI document. Where the document offers both an Id and a Code field (clientId / clientCode),
       either may be given; Rivile resolves codes itself.
 - operation_id: get_workflow_statuses_entity_type_id
-  title: 'Advanced · Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId})'
+  title: Advanced · List workflow statuses of a record type
   fields:
   - name: entity_type_id
     label: Entity type id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The entity type's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: get_workflow_statuses_entity_type_id_company_id
-  title: 'Advanced · Workflow statuses: Workflow statuses (GET /v1/workflow-statuses/{entityTypeId}/{companyId})'
+  title: Advanced · List workflow statuses of a record type for a company
   fields:
   - name: company_id
     label: Company id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The company's id (a UUID), as Rivile ERP returns it in its id field.
   - name: entity_type_id
     label: Entity type id
     widget_type: text
     required: true
-    help_text: The record's id (a UUID, as returned in id).
+    help_text: The entity type's id (a UUID), as Rivile ERP returns it in its id field.
 - operation_id: call_endpoint
   title: Advanced · Call any Rivile ERP endpoint
   fields:
@@ -2401,6 +2406,7 @@ forms:
     label: HTTP method
     widget_type: select
     required: true
+    help_text: The HTTP method of the endpoint, as in the API reference.
     options:
     - label: GET
       value: GET
@@ -2427,7 +2433,7 @@ forms:
     label: Body
     widget_type: json
     required: false
-    help_text: The JSON body, sent unchanged.
+    help_text: The JSON request body, sent unchanged.
 - operation_id: export_list
   title: Advanced · Export a Rivile ERP list to a JSONL file
   fields:
@@ -2437,43 +2443,43 @@ forms:
     required: true
     help_text: The Rivile ERP list to export page by page (its GET path).
     options:
-    - label: /v1/clients
+    - label: Clients (/v1/clients)
       value: /v1/clients
-    - label: /v1/contacts
+    - label: Contacts (/v1/contacts)
       value: /v1/contacts
-    - label: /v1/deliveries
+    - label: Deliveries (/v1/deliveries)
       value: /v1/deliveries
-    - label: /v1/employees
+    - label: Employees (/v1/employees)
       value: /v1/employees
-    - label: /v1/gift-cards
+    - label: Gift cards (/v1/gift-cards)
       value: /v1/gift-cards
-    - label: /v1/inventory-adjustments
+    - label: Inventory adjustments (/v1/inventory-adjustments)
       value: /v1/inventory-adjustments
-    - label: /v1/inventory-movements
+    - label: Inventory movements (/v1/inventory-movements)
       value: /v1/inventory-movements
-    - label: /v1/inventory-stocks
+    - label: Inventory stock (/v1/inventory-stocks)
       value: /v1/inventory-stocks
-    - label: /v1/lots
+    - label: Lots (/v1/lots)
       value: /v1/lots
-    - label: /v1/manufactures
+    - label: Manufacturing (/v1/manufactures)
       value: /v1/manufactures
-    - label: /v1/payments
+    - label: Payments (/v1/payments)
       value: /v1/payments
-    - label: /v1/products
+    - label: Products (/v1/products)
       value: /v1/products
-    - label: /v1/purchase-invoices
+    - label: Purchase invoices (/v1/purchase-invoices)
       value: /v1/purchase-invoices
-    - label: /v1/purchase-orders
+    - label: Purchase orders (/v1/purchase-orders)
       value: /v1/purchase-orders
-    - label: /v1/pr-registries
+    - label: Receivables and payables (/v1/pr-registries)
       value: /v1/pr-registries
-    - label: /v1/sale-invoices
+    - label: Sale invoices (/v1/sale-invoices)
       value: /v1/sale-invoices
-    - label: /v1/sale-orders
+    - label: Sale orders (/v1/sale-orders)
       value: /v1/sale-orders
-    - label: /v1/sale-prices
+    - label: Sale prices (/v1/sale-prices)
       value: /v1/sale-prices
-    - label: /v1/timesheet-schedules
+    - label: Timesheet schedules (/v1/timesheet-schedules)
       value: /v1/timesheet-schedules
   - name: filters
     label: Filters
