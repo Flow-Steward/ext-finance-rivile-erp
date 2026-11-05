@@ -1,0 +1,31 @@
+page_id: setup-guide
+title: Setup Guide
+description: How to get a Rivile ERP API key and connect it — about a minute to read.
+components:
+  - component_id: setup_rivile
+    type: markdown
+    title: For the person who administers Rivile ERP
+    body: |
+      Rivile ERP is Rivile's cloud system: there is nothing to install. The API key is created in Rivile ERP itself.
+
+      1. Sign in to Rivile ERP as a user who may change settings.
+      2. Open **Nustatymai → Bendrieji → API Raktai** and press **Sukurti naują raktą**.
+      3. Enter a name for the integration (for example `Flow Steward`), choose the **Įmonė** (company) and set **Galioja iki** (valid until).
+      4. Press **Išsaugoti**. Copy the key at once and pass it on safely: Rivile shows it only once.
+
+      - One key belongs to one company. For another company, create another key.
+      - The key gives full API access to that company. Keep it like a password.
+      - To stop it, mark it **Neaktyvus** or shorten **Galioja iki**. Regenerating it stops every integration that uses the old key.
+      - To try the integration first, use Rivile ERP's 30-day free trial and create a key there.
+
+      [Rivile guide: API keys](https://guide.rivile.cloud/integrative_solutions/api/api_key) · [Rivile ERP API reference](https://erp.rivile.cloud/public-api/swagger-ui/index.html)
+  - component_id: setup_flow_steward
+    type: markdown
+    title: For the person who connects in Flow Steward
+    body: |
+      You need only the API key.
+
+      1. Open **Connection** and add a connection. Name it after the company, for example `UAB X`.
+      2. Paste the API key and save.
+      3. Press **Test connection**.
+      4. In a workflow, add a Rivile ERP step and pick this connection. Start with the everyday steps on **Rivile ERP API**.

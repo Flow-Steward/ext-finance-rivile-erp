@@ -1,0 +1,53 @@
+page_id: connection
+title: Connection
+description: Add and test the Rivile ERP API key.
+components:
+  - component_id: rivile_erp_connections
+    type: connection_form
+    title: Rivile ERP API keys
+    description: Add one connection per API key, then test it. The key is stored encrypted and never shown again.
+    data:
+      connection_kind: extension
+      connection_type: rivile_erp
+      config_fields: [label, language]
+      secret_fields: [api_key]
+      test_action: test_connection
+    defaults:
+      label: ''
+      language: en
+    fields:
+      - path: label
+        widget: text
+        label: Label
+        placeholder: UAB X
+      - path: api_key
+        widget: secret
+        label: API key
+        help: The key from Rivile ERP (Nustatymai → Bendrieji → API Raktai).
+        required: true
+      - path: language
+        widget: select
+        label: Message language
+        help: The language of Rivile ERP's messages and error texts.
+        options:
+          - label: English
+            value: en
+          - label: Lithuanian
+            value: lt
+    ui_schema:
+      actions:
+        test_label: Test connection
+  - component_id: connection_api_key
+    type: markdown
+    title: How to get the API key
+    body: |
+      1. In Rivile ERP open **Nustatymai → Bendrieji → API Raktai** and press **Sukurti naują raktą**.
+      2. Choose the company and the date the key is valid until, and save.
+      3. Copy the key — Rivile shows it only once — paste it above and press **Test connection**.
+
+      One key belongs to one company. A key can be regenerated in Rivile ERP; the old one then stops working.
+
+      **If the test fails:**
+
+      - **Authentication failed (401)** — the key is wrong, expired or deactivated. Check it in Rivile ERP, or create a new one.
+      - **Timeout or upstream failure** — Rivile ERP did not answer. Try again later.
