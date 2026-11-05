@@ -38,7 +38,7 @@ components:
     - Kind: write
     - Rivile ERP calls: `GET /v1/clients`, `POST /v1/clients`, `GET /v1/sale-invoices`, `POST /v1/sale-invoices`, `PATCH /v1/sale-invoices/{id}/post`
     - Inputs: `client_code` (optional), `reg_code` (optional), `vat_number` (optional), `name` (optional), `client_type` (optional), `address` (optional), `email` (optional), `phone` (optional), `is_customer` (optional), `is_supplier` (optional), `number` (optional), `date` (optional), `document_date` (optional), `department_code`, `currency_code` (optional), `prices_include_tax` (optional), `notes` (optional), `lines`, `post` (optional)
-    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `total_with_tax`, `status_id`, `posted`, `post_note`, `record`
+    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `total_with_tax`, `status_id`, `posted`, `record`
 
     ### Create purchase invoice
 
@@ -48,7 +48,7 @@ components:
     - Kind: write
     - Rivile ERP calls: `GET /v1/clients`, `POST /v1/clients`, `GET /v1/purchase-invoices`, `POST /v1/purchase-invoices`, `PATCH /v1/purchase-invoices/{id}/post`
     - Inputs: `client_code` (optional), `reg_code` (optional), `vat_number` (optional), `name` (optional), `client_type` (optional), `address` (optional), `email` (optional), `phone` (optional), `is_customer` (optional), `is_supplier` (optional), `number` (optional), `date` (optional), `document_date` (optional), `department_code`, `currency_code` (optional), `prices_include_tax` (optional), `notes` (optional), `lines`, `post` (optional)
-    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `total_with_tax`, `status_id`, `posted`, `post_note`, `record`
+    - Results: `document_id`, `number`, `created`, `client_code`, `client_created`, `lines_created`, `total_amount`, `total_tax`, `total_with_tax`, `status_id`, `posted`, `record`
 
     ### Download document file
 
@@ -87,8 +87,8 @@ components:
     - Action id: `stock_levels`
     - Kind: read
     - Rivile ERP calls: `GET /v1/inventory-stocks`
-    - Inputs: `product_code` (optional), `department_code` (optional), `max_pages` (optional)
-    - Results: `items`, `count`, `totals`, `has_more`
+    - Inputs: `product_code` (optional), `department_code` (optional), `page` (optional), `max_pages` (optional)
+    - Results: `items`, `count`, `totals`, `has_more`, `next_page`, `complete`
 
     ### Product prices
 
@@ -97,8 +97,8 @@ components:
     - Action id: `product_prices`
     - Kind: read
     - Rivile ERP calls: `GET /v1/sale-prices`
-    - Inputs: `product_code`, `price_category_code` (optional), `currency_code` (optional), `department_code` (optional)
-    - Results: `prices`, `count`, `has_more`
+    - Inputs: `product_code`, `price_category_code` (optional), `currency_code` (optional), `department_code` (optional), `page` (optional), `max_pages` (optional)
+    - Results: `prices`, `count`, `has_more`, `next_page`, `complete`
 
     ### Changes since
 
@@ -117,8 +117,8 @@ components:
     - Action id: `client_debt`
     - Kind: read
     - Rivile ERP calls: `GET /v1/pr-registries`
-    - Inputs: `client_code`, `max_pages` (optional)
-    - Results: `total_due`, `overdue`, `totals_by_type`, `documents`, `count`, `complete`, `has_more`
+    - Inputs: `client_code`, `page` (optional), `max_pages` (optional)
+    - Results: `total_due`, `overdue`, `totals_by_type`, `documents`, `count`, `complete`, `has_more`, `next_page`
 - component_id: operations_behaviour
   type: markdown
   title: How operations behave
@@ -1047,7 +1047,7 @@ components:
   body: |
     ### Call any Rivile ERP endpoint
 
-    Sends one request to any Rivile ERP Public API path under /v1. Treated as a write whatever the method: suppressed in test runs and recorded in the external-effect ledger.
+    Sends one request to any Rivile ERP Public API path under /v1. Declared as an external effect (suppressed in test runs, recorded in the ledger); a GET is sent as a read, so its failures are plain read failures.
 
     - Action id: `call_endpoint` · write · any path under `/v1`
     - Inputs: `method`, `path`, `query` (optional), `body` (optional)
@@ -1059,7 +1059,7 @@ components:
 
     - Action id: `export_list` · read · any path under `/v1`
     - Inputs: `list`, `filters` (optional), `max_pages` (optional), `start_page` (optional)
-    - Results: `artifact_handle`, `filename`, `content_type`, `record_count`, `pages_fetched`, `complete`, `resume_page`, `total_elements`
+    - Results: `artifact_handle`, `filename`, `content_type`, `record_count`, `pages_fetched`, `complete`, `resume_page`, `total_elements`, `stopped_by`
 - component_id: advanced_coverage
   type: markdown
   title: Coverage

@@ -82,7 +82,8 @@ _UUID_RE = re.compile(
 )
 #: Codes that go into a filter. ASCII only, no quotes or control characters.
 _CODE_RE = re.compile(r"^[A-Za-z0-9 ._/-]{1,50}$")
-_NUMBER_RE = re.compile(r"^-?[0-9]{0,15}([.,][0-9]{1,6})?$")
+#: "." is the only decimal separator: "1,500" could mean 1.5 or 1500, so it is refused.
+_NUMBER_RE = re.compile(r"^-?[0-9]{0,15}(\.[0-9]{1,6})?$")
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +129,14 @@ def code(inputs: Mapping[str, Any], name: str, *, required: bool = False) -> str
     return text
 
 
+def body_code(inputs: Mapping[str, Any], name: str, *, required: bool = False) -> str:
+    """A code sent only in a request body: any printable text (Lithuanian letters, m²).
+
+    Only values that go into a filter are held to the strict ``code`` alphabet.
+    """
+    return _text(inputs, name, required=required, limit=50)
+
+
 def _uuid(inputs: Mapping[str, Any], name: str, *, required: bool = False) -> str:
     text = _text(inputs, name, required=required, limit=36)
     if text and not _UUID_RE.fullmatch(text):
@@ -148,7 +157,7 @@ def decimal_input(
     if isinstance(value, (int, float)):
         text = repr(value) if isinstance(value, float) else str(value)
     elif isinstance(value, str) and value.strip() and _NUMBER_RE.fullmatch(value.strip()):
-        text = value.strip().replace(",", ".")
+        text = value.strip()
     else:
         raise _invalid(f"{name} must be a number")
     try:
@@ -485,7 +494,7 @@ def invoice_lines(inputs: Mapping[str, Any], department: str) -> list[dict[str, 
         if not isinstance(item, Mapping) or set(item) - _LINE_KEYS:
             raise _invalid(f"{where} may have only: {', '.join(sorted(_LINE_KEYS))}")
         line: dict[str, Any] = {
-            "itemCode": code(item, "item_code", required=True),
+            "itemCode": body_code(item, "item_code", required=True),
             "qtyAlt": wire(
                 decimal_input(
                     item.get("quantity"),
@@ -495,9 +504,9 @@ def invoice_lines(inputs: Mapping[str, Any], department: str) -> list[dict[str, 
                     maximum=MAX_QUANTITY,
                 )
             ),
-            "departmentCode": code(item, "department_code") or department,
+            "departmentCode": body_code(item, "department_code") or department,
         }
-        unit = code(item, "unit")
+        unit = body_code(item, "unit")
         if unit:
             line["uomAltCode"] = unit
         if item.get("price") is not None:
@@ -524,7 +533,7 @@ def invoice_lines(inputs: Mapping[str, Any], department: str) -> list[dict[str, 
 
 
 def invoice_header(inputs: Mapping[str, Any]) -> dict[str, Any]:
-    department = code(inputs, "department_code", required=True)
+    department = body_code(inputs, "department_code", required=True)
     header: dict[str, Any] = {"departmentCode": department}
     number = _text(inputs, "number", limit=50)
     if number:
@@ -535,7 +544,7 @@ def invoice_header(inputs: Mapping[str, Any]) -> dict[str, Any]:
     doc_date = _date(inputs, "document_date") or op_date
     if doc_date:
         header["docDate"] = doc_date
-    currency = code(inputs, "currency_code")
+    currency = body_code(inputs, "currency_code")
     if currency:
         header["currencyCode"] = currency
     if inputs.get("prices_include_tax") is not None:
@@ -553,7 +562,6 @@ def _invoice_result(
     client: dict[str, Any],
     lines: int,
     posted: bool | None,
-    post_note: str | None = None,
 ) -> dict[str, Any]:
     record = dict(record) if isinstance(record, Mapping) else None
     status = field(record, "statusId")
@@ -569,7 +577,6 @@ def _invoice_result(
         "total_with_tax": decimal_text(decimal_of(record, "totalAmountWithTax")),
         "status_id": status if isinstance(status, int) and not isinstance(status, bool) else None,
         "posted": posted,
-        "post_note": post_note,
         "record": record,
     }
 
@@ -592,21 +599,9 @@ def create_invoice(
             "Creating the invoice",
         )
     if header.get("documentNo"):
-        existing = progress.guard(
-            "Looking up the invoice number",
-            lambda: api.list(
-                path,
-                [
-                    {"field": "documentNo", "operation": "EQUAL", "value": header["documentNo"]},
-                    {"field": "clientCode", "operation": "EQUAL", "value": client_code},
-                ],
-                size=2,
-            ),
-        )
-        if existing["records"]:
-            return _existing_invoice(
-                api, existing["records"][0], path, noun, client, post=post, progress=progress
-            )
+        found = _same_invoice(api, path, noun, header, client_code, progress)
+        if found is not None:
+            return _existing_invoice(api, found, path, noun, client, post=post, progress=progress)
     body = {**header, "clientCode": client_code, "lines": lines}
     record = progress.guard(f"Creating the {noun}", lambda: api.write("POST", path, body))
     document_id = text_of(record, "id")
@@ -636,6 +631,61 @@ def create_invoice(
     return _invoice_result(record, created=True, client=client, lines=len(lines), posted=posted)
 
 
+def _same_invoice(
+    api: Api,
+    path: str,
+    noun: str,
+    header: Mapping[str, Any],
+    client_code: str,
+    progress: Progress,
+) -> dict[str, Any] | None:
+    """The document this step would create, if a previous run already created it.
+
+    Numbers can restart every year, so number and client are not enough: the
+    operation date must match too. Same number with another date is an old
+    document — the step stops rather than create a duplicate number or post the
+    wrong one. Several same-day matches are ambiguous and stop the step too.
+    """
+    number = header["documentNo"]
+    read = progress.guard(
+        "Looking up the invoice number",
+        lambda: api.list(
+            path,
+            [
+                {"field": "documentNo", "operation": "EQUAL", "value": number},
+                {"field": "clientCode", "operation": "EQUAL", "value": client_code},
+            ],
+            size=20,
+        ),
+    )
+    matches = [dict(r) for r in read["records"] if isinstance(r, Mapping)]
+    if not matches:
+        return None
+    wanted = header.get("opDate") or date.today().isoformat()
+    same_day = [r for r in matches if text_of(r, "opDate")[:10] == wanted]
+    if len(same_day) == 1:
+        return same_day[0]
+    step = "Looking up the invoice number"
+    if len(same_day) > 1:
+        ids = ", ".join(text_of(r, "id") for r in same_day[:5])
+        raise progress.fail(
+            _invalid(
+                f"{len(same_day)} {noun}s of client {client_code} have number {number} and date "
+                f"{wanted} ({ids}); nothing was created. Use the Advanced steps with the document id."
+            ),
+            step,
+        )
+    other = matches[0]
+    raise progress.fail(
+        _invalid(
+            f"A {noun} with number {number} already exists for client {client_code} "
+            f"(id {text_of(other, 'id')}, date {text_of(other, 'opDate') or 'unknown'}); "
+            f"nothing was created. Give the date of that document to return it, or another number."
+        ),
+        step,
+    )
+
+
 def _existing_invoice(
     api: Api,
     record: Any,
@@ -646,24 +696,18 @@ def _existing_invoice(
     post: bool,
     progress: Progress,
 ) -> dict[str, Any]:
-    """An invoice with this number already exists: return it, and post it if asked.
+    """The invoice a previous run created (number, client and date match); post it if asked.
 
     Rivile does not document which statusId means "posted", so the state is not
-    guessed: ``posted`` is null unless this step posted it, and a refusal to post
-    (for example because it already is) is reported in ``post_note``.
+    guessed: ``posted`` is null unless this step posts it. Rivile documents no
+    "already posted" error either, so any refusal to post fails the step with
+    Rivile's message (a 400 proves nothing was written).
     """
     document_id = text_of(record, "id")
     if not post or not document_id:
         return _invoice_result(record, created=False, client=client, lines=0, posted=None)
     post_path = encode_path(path + "/{id}/post", {"id": document_id})
-    try:
-        progress.guard(f"Posting the existing {noun}", lambda: api.write("PATCH", post_path, None))
-    except ExtensionError as exc:
-        if exc.code != errors.UPSTREAM_VALIDATION_FAILED or progress.done:
-            raise
-        return _invoice_result(
-            record, created=False, client=client, lines=0, posted=None, post_note=exc.message
-        )
+    progress.guard(f"Posting the existing {noun}", lambda: api.write("PATCH", post_path, None))
     return _invoice_result(record, created=False, client=client, lines=0, posted=True)
 
 
@@ -691,7 +735,7 @@ def payment_body(inputs: Mapping[str, Any]) -> tuple[dict[str, Any], str, int, b
     direction = _choice(inputs, "direction", ("received", "sent"), None)
     body: dict[str, Any] = {
         "typeId": 5 if direction == "received" else 4,
-        "clientCode": code(inputs, "client_code", required=True),
+        "clientCode": body_code(inputs, "client_code", required=True),
         "amountCur": wire(
             decimal_input(
                 inputs.get("amount"), "amount", MONEY, minimum=Decimal("0.01"), maximum=MAX_AMOUNT
@@ -703,7 +747,7 @@ def payment_body(inputs: Mapping[str, Any]) -> tuple[dict[str, Any], str, int, b
         ("account_code", "accountCode"),
         ("payment_method_code", "paymentMethodCode"),
     ):
-        value = code(inputs, input_name)
+        value = body_code(inputs, input_name)
         if value:
             body[rivile_field] = value
     op_date = _date(inputs, "date")
@@ -779,7 +823,7 @@ def product_body(inputs: Mapping[str, Any], *, require_name: bool) -> dict[str, 
     description = _text(inputs, "description", limit=1000)
     if description:
         body["description"] = description
-    unit = code(inputs, "unit")
+    unit = body_code(inputs, "unit")
     barcode = code(inputs, "barcode")
     if unit or barcode:
         uom: dict[str, Any] = {}
@@ -860,51 +904,79 @@ def _fit(read: dict[str, Any], build: Callable[[dict[str, Any]], dict[str, Any]]
     return operations.fit_pages(read, build)
 
 
+def _paging(inputs: Mapping[str, Any]) -> dict[str, Any]:
+    return {"first_page": _page(inputs), "max_pages": _max_pages(inputs)}
+
+
+def _continuation(done: dict[str, Any]) -> dict[str, Any]:
+    """How a step continues a read that stopped early, so partial totals are explicit."""
+    return {
+        "has_more": done["has_more"],
+        "next_page": done["next_page"],
+        "complete": not done["has_more"],
+    }
+
+
 def stock_levels(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
-    _allowed(inputs, {"product_code", "department_code", "max_pages"})
+    _allowed(inputs, {"product_code", "department_code", "page", "max_pages"})
     read = api.list(
         "/v1/inventory-stocks",
         _conditions(
             inputs, (("product_code", "productCode"), ("department_code", "departmentCode"))
         ),
-        max_pages=_max_pages(inputs),
         meter=budget.Meter(),
+        **_paging(inputs),
     )
 
     def build(done: dict[str, Any]) -> dict[str, Any]:
         items = []
-        # Quantities only add up for the same product in the same unit.
-        totals: dict[tuple[str, str], Decimal] = {}
+        # qty* are in the product's base unit; qtyAlt* in the unit uomCode names
+        # (uomRatio base units each). Totals add base quantities per product.
+        totals: dict[str, Decimal] = {}
         for row in done["records"]:
             available = decimal_of(row, "qtyAvailable")
-            key = (text_of(row, "productCode"), text_of(row, "uomCode"))
-            totals[key] = totals.get(key, Decimal(0)) + (available or Decimal(0))
+            product = text_of(row, "productCode")
+            totals[product] = totals.get(product, Decimal(0)) + (available or Decimal(0))
             items.append(
                 {
-                    "product_code": key[0],
+                    "product_code": product,
                     "department_code": text_of(row, "departmentCode"),
-                    "unit": key[1],
+                    "lot_code": text_of(row, "lotCode") or None,
                     "available": decimal_text(available, QUANTITY),
                     "in_warehouse": decimal_text(decimal_of(row, "qtyWarehouse"), QUANTITY),
                     "reserved": decimal_text(decimal_of(row, "qtyReserved"), QUANTITY),
-                    "lot_code": text_of(row, "lotCode") or None,
+                    "alt_unit": text_of(row, "uomCode") or None,
+                    "alt_unit_ratio": decimal_text(decimal_of(row, "uomRatio"), QUANTITY),
+                    "alt_available": decimal_text(decimal_of(row, "qtyAltAvailable"), QUANTITY),
+                    "alt_in_warehouse": decimal_text(decimal_of(row, "qtyAltWarehouse"), QUANTITY),
+                    "alt_reserved": decimal_text(decimal_of(row, "qtyAltReserved"), QUANTITY),
                 }
             )
         return {
             "items": items,
             "count": len(items),
             "totals": [
-                {"product_code": product, "unit": unit, "available": decimal_text(total, QUANTITY)}
-                for (product, unit), total in totals.items()
+                {"product_code": product, "available": decimal_text(total, QUANTITY)}
+                for product, total in totals.items()
             ],
-            "has_more": done["has_more"],
+            **_continuation(done),
         }
 
     return _fit(read, build)
 
 
 def product_prices(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
-    _allowed(inputs, {"product_code", "price_category_code", "currency_code", "department_code"})
+    _allowed(
+        inputs,
+        {
+            "product_code",
+            "price_category_code",
+            "currency_code",
+            "department_code",
+            "page",
+            "max_pages",
+        },
+    )
     code(inputs, "product_code", required=True)
     read = api.list(
         "/v1/sale-prices",
@@ -917,8 +989,8 @@ def product_prices(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
                 ("department_code", "departmentCode"),
             ),
         ),
-        max_pages=5,
         meter=budget.Meter(),
+        **_paging(inputs),
     )
 
     def build(done: dict[str, Any]) -> dict[str, Any]:
@@ -935,7 +1007,7 @@ def product_prices(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
             }
             for row in done["records"]
         ]
-        return {"prices": prices, "count": len(prices), "has_more": done["has_more"]}
+        return {"prices": prices, "count": len(prices), **_continuation(done)}
 
     return _fit(read, build)
 
@@ -983,13 +1055,13 @@ def changes_since(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def client_debt(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
-    _allowed(inputs, {"client_code", "max_pages"})
+    _allowed(inputs, {"client_code", "page", "max_pages"})
     client_code = code(inputs, "client_code", required=True)
     read = api.list(
         "/v1/pr-registries",
         [{"field": "clientCode", "operation": "EQUAL", "value": client_code}],
-        max_pages=_max_pages(inputs),
         meter=budget.Meter(),
+        **_paging(inputs),
     )
 
     def build(done: dict[str, Any]) -> dict[str, Any]:
@@ -1042,8 +1114,7 @@ def client_debt(api: Api, inputs: Mapping[str, Any]) -> dict[str, Any]:
             ],
             "documents": documents,
             "count": len(documents),
-            "complete": not done["has_more"],
-            "has_more": done["has_more"],
+            **_continuation(done),
         }
 
     return _fit(read, build)
@@ -1173,18 +1244,29 @@ def validate(operation_id: str, inputs: Mapping[str, Any]) -> None:
     elif operation_id == "download_document_file":
         _download_target(inputs)
     elif operation_id == "stock_levels":
-        _allowed(inputs, {"product_code", "department_code", "max_pages"})
+        _allowed(inputs, {"product_code", "department_code", "page", "max_pages"})
+        _paging(inputs)
     elif operation_id == "product_prices":
         _allowed(
-            inputs, {"product_code", "price_category_code", "currency_code", "department_code"}
+            inputs,
+            {
+                "product_code",
+                "price_category_code",
+                "currency_code",
+                "department_code",
+                "page",
+                "max_pages",
+            },
         )
         code(inputs, "product_code", required=True)
+        _paging(inputs)
     elif operation_id == "changes_since":
         _allowed(inputs, {"entity", "since", "page", "max_pages"})
         _since(inputs)
         _page(inputs)
     elif operation_id == "client_debt":
-        _allowed(inputs, {"client_code", "max_pages"})
+        _allowed(inputs, {"client_code", "page", "max_pages"})
+        _paging(inputs)
         code(inputs, "client_code", required=True)
 
 
@@ -1210,7 +1292,6 @@ NEUTRAL_OUTPUTS: dict[str, dict[str, Any]] = {
         "total_with_tax": None,
         "status_id": None,
         "posted": False,
-        "post_note": None,
         "record": None,
     },
     "register_payment": {"payment_id": None, "linked": False, "posted": False, "record": None},

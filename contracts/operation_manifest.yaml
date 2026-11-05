@@ -266,9 +266,10 @@ operations:
     schema:
       type: string
       title: Number
-      description: The document number. With a number the step first looks for a sales invoice with this
-        number for this client and returns it instead of creating a second one. Without it Rivile numbers
-        the document.
+      description: 'The document number. With a number the step first looks for a sales invoice with this
+        number, client and date: if one exists it is returned (and posted if asked) instead of creating
+        a second one; the same number with another date stops the step. Without a number Rivile numbers
+        the document.'
       maxLength: 50
   - name: date
     value_type: text
@@ -294,20 +295,16 @@ operations:
     schema:
       type: string
       title: Department
-      description: The department (warehouse) code used for every line that does not name its own. Letters,
-        digits, spaces and . _ / - only.
+      description: The department (warehouse) code used for every line that does not name its own.
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: currency_code
     value_type: text
     required: false
     schema:
       type: string
       title: Currency
-      description: 'The currency code, for example EUR. Default: the company''s base currency. Letters,
-        digits, spaces and . _ / - only.'
+      description: 'The currency code, for example EUR. Default: the company''s base currency.'
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: prices_include_tax
     value_type: boolean
     required: false
@@ -450,14 +447,7 @@ operations:
       - boolean
       - 'null'
       description: True when this step posted the document; null when an existing document was returned
-        and not posted by this step.
-  - name: post_note
-    value_type: text
-    schema:
-      type:
-      - string
-      - 'null'
-      description: Why Rivile refused to post an existing document, for example because it already is.
+        without posting (Rivile does not document which status means posted).
   - name: record
     value_type: object
     schema:
@@ -485,7 +475,6 @@ operations:
   - result.total_with_tax
   - result.status_id
   - result.posted
-  - result.post_note
   - result.record
   - result.external_effect_status
   - result.definitely_no_external_effect
@@ -536,9 +525,10 @@ operations:
     schema:
       type: string
       title: Number
-      description: The document number. With a number the step first looks for a purchase invoice with
-        this number for this client and returns it instead of creating a second one. Without it Rivile
-        numbers the document.
+      description: 'The document number. With a number the step first looks for a purchase invoice with
+        this number, client and date: if one exists it is returned (and posted if asked) instead of creating
+        a second one; the same number with another date stops the step. Without a number Rivile numbers
+        the document.'
       maxLength: 50
   - name: date
     value_type: text
@@ -564,20 +554,16 @@ operations:
     schema:
       type: string
       title: Department
-      description: The department (warehouse) code used for every line that does not name its own. Letters,
-        digits, spaces and . _ / - only.
+      description: The department (warehouse) code used for every line that does not name its own.
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: currency_code
     value_type: text
     required: false
     schema:
       type: string
       title: Currency
-      description: 'The currency code, for example EUR. Default: the company''s base currency. Letters,
-        digits, spaces and . _ / - only.'
+      description: 'The currency code, for example EUR. Default: the company''s base currency.'
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: prices_include_tax
     value_type: boolean
     required: false
@@ -683,14 +669,7 @@ operations:
       - boolean
       - 'null'
       description: True when this step posted the document; null when an existing document was returned
-        and not posted by this step.
-  - name: post_note
-    value_type: text
-    schema:
-      type:
-      - string
-      - 'null'
-      description: Why Rivile refused to post an existing document, for example because it already is.
+        without posting (Rivile does not document which status means posted).
   - name: record
     value_type: object
     schema:
@@ -718,7 +697,6 @@ operations:
   - result.total_with_tax
   - result.status_id
   - result.posted
-  - result.post_note
   - result.record
   - result.external_effect_status
   - result.definitely_no_external_effect
@@ -878,9 +856,8 @@ operations:
     schema:
       type: string
       title: Client code
-      description: The code of the client who paid or is paid. Letters, digits, spaces and . _ / - only.
+      description: The code of the client who paid or is paid.
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: amount
     value_type: text
     required: true
@@ -896,10 +873,8 @@ operations:
     schema:
       type: string
       title: Currency
-      description: 'The currency code. Default: the base currency. Letters, digits, spaces and . _ / -
-        only.'
+      description: 'The currency code. Default: the base currency.'
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: date
     value_type: text
     required: false
@@ -915,18 +890,16 @@ operations:
     schema:
       type: string
       title: Money account
-      description: The bank or cash account code. Letters, digits, spaces and . _ / - only.
+      description: The bank or cash account code.
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: payment_method_code
     value_type: text
     required: false
     schema:
       type: string
       title: Payment method
-      description: The payment method code. Letters, digits, spaces and . _ / - only.
+      description: The payment method code.
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: document_no
     value_type: text
     required: false
@@ -1082,10 +1055,8 @@ operations:
     schema:
       type: string
       title: Unit
-      description: The unit of measure code for a new product, for example VNT. Letters, digits, spaces
-        and . _ / - only.
+      description: The unit of measure code for a new product, for example VNT.
       maxLength: 50
-      pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - name: description
     value_type: text
     required: false
@@ -1191,6 +1162,16 @@ operations:
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - &id013
+    name: page
+    value_type: integer
+    required: false
+    schema:
+      type: integer
+      minimum: 0
+      maximum: 1000000
+      title: Page
+      description: The page to start from, counted from 0; pass next_page to continue.
+  - &id014
     name: max_pages
     value_type: integer
     required: false
@@ -1205,7 +1186,8 @@ operations:
     value_type: array
     schema:
       type: array
-      description: 'One row per product, department and lot: available, in warehouse, reserved.'
+      description: 'One row per product, department and lot: available, in warehouse and reserved in the
+        product''s base unit, and the same in the alternative unit (alt_unit, alt_unit_ratio, alt_available…).'
   - name: count
     value_type: integer
     schema:
@@ -1215,17 +1197,33 @@ operations:
     value_type: array
     schema:
       type: array
-      description: Available quantity summed per product and unit, as exact decimals.
+      description: Available quantity summed per product, in its base unit, as exact decimals.
   - name: has_more
     value_type: boolean
     schema:
       type: boolean
       description: True when there are more rows to read.
+  - &id015
+    name: next_page
+    value_type: integer
+    schema:
+      type:
+      - integer
+      - 'null'
+      description: The page to continue from, or null.
+  - &id016
+    name: complete
+    value_type: boolean
+    schema:
+      type: boolean
+      description: False when more rows exist than were read.
   result_fields:
   - result.items
   - result.count
   - result.totals
   - result.has_more
+  - result.next_page
+  - result.complete
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -1289,6 +1287,8 @@ operations:
       description: Only prices of this department. Letters, digits, spaces and . _ / - only.
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
+  - *id013
+  - *id014
   outputs:
   - name: prices
     value_type: array
@@ -1305,10 +1305,14 @@ operations:
     schema:
       type: boolean
       description: True when there are more prices to read.
+  - *id015
+  - *id016
   result_fields:
   - result.prices
   - result.count
   - result.has_more
+  - result.next_page
+  - result.complete
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -1379,7 +1383,7 @@ operations:
       maximum: 1000000
       title: Page
       description: The page to start from, counted from 0; pass next_page to continue.
-  - *id013
+  - *id014
   outputs:
   - name: records
     value_type: array
@@ -1446,6 +1450,7 @@ operations:
       maxLength: 50
       pattern: ^[A-Za-z0-9 ._/-]{1,50}$
   - *id013
+  - *id014
   outputs:
   - name: total_due
     value_type: text
@@ -1483,6 +1488,13 @@ operations:
     schema:
       type: boolean
       description: True when there are more rows to read.
+  - name: next_page
+    value_type: integer
+    schema:
+      type:
+      - integer
+      - 'null'
+      description: The page to continue from, or null.
   result_fields:
   - result.total_due
   - result.overdue
@@ -1491,6 +1503,7 @@ operations:
   - result.count
   - result.complete
   - result.has_more
+  - result.next_page
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -1558,7 +1571,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: &id015
+            enum: &id018
             - EQUAL
             - NOT_EQUAL
             - CONTAINS
@@ -1627,7 +1640,7 @@ operations:
       items:
         type: object
         description: Client list item response
-        properties: &id014
+        properties: &id017
           id:
             type: string
             description: Client ID
@@ -1785,7 +1798,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id014
+      properties: *id017
       additionalProperties: true
   - name: count
     value_type: integer
@@ -3061,7 +3074,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -3119,7 +3132,7 @@ operations:
       items:
         type: object
         description: Contact list item response
-        properties: &id016
+        properties: &id019
           id:
             type: string
             description: Contact ID
@@ -3172,7 +3185,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id016
+      properties: *id019
       additionalProperties: true
   - name: count
     value_type: integer
@@ -3754,7 +3767,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -3813,7 +3826,7 @@ operations:
       items:
         type: object
         description: Delivery item response
-        properties: &id017
+        properties: &id020
           id:
             type: string
             description: Delivery ID
@@ -3929,7 +3942,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id017
+      properties: *id020
       additionalProperties: true
   - name: count
     value_type: integer
@@ -6212,7 +6225,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -6269,7 +6282,7 @@ operations:
       type: array
       items:
         type: object
-        properties: &id018
+        properties: &id021
           id:
             type: string
             description: Employee ID
@@ -6430,7 +6443,7 @@ operations:
       type:
       - object
       - 'null'
-      properties: *id018
+      properties: *id021
       additionalProperties: true
       description: The first record, or null.
   - name: count
@@ -6631,7 +6644,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -6689,7 +6702,7 @@ operations:
       items:
         type: object
         description: Gift card list item response
-        properties: &id019
+        properties: &id022
           id:
             type: string
             format: uuid
@@ -6760,7 +6773,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id019
+      properties: *id022
       additionalProperties: true
   - name: count
     value_type: integer
@@ -7614,7 +7627,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -7673,7 +7686,7 @@ operations:
       items:
         type: object
         description: Inventory adjustment list item response
-        properties: &id020
+        properties: &id023
           id:
             type: string
             description: Inventory adjustment ID
@@ -7735,7 +7748,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id020
+      properties: *id023
       additionalProperties: true
   - name: count
     value_type: integer
@@ -8730,7 +8743,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -8789,7 +8802,7 @@ operations:
       items:
         type: object
         description: Inventory movement list item response
-        properties: &id021
+        properties: &id024
           id:
             type: string
             description: Inventory movement ID
@@ -8852,7 +8865,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id021
+      properties: *id024
       additionalProperties: true
   - name: count
     value_type: integer
@@ -10075,7 +10088,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -10134,7 +10147,7 @@ operations:
       items:
         type: object
         description: Inventory stock list item response
-        properties: &id022
+        properties: &id025
           costWarehouse:
             type: number
           costPosted:
@@ -10233,7 +10246,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id022
+      properties: *id025
       additionalProperties: true
   - name: count
     value_type: integer
@@ -10356,7 +10369,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -10414,7 +10427,7 @@ operations:
       items:
         type: object
         description: Lot list item response
-        properties: &id023
+        properties: &id026
           id:
             type: string
             format: uuid
@@ -10460,7 +10473,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id023
+      properties: *id026
       additionalProperties: true
   - name: count
     value_type: integer
@@ -10987,7 +11000,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -11046,7 +11059,7 @@ operations:
       items:
         type: object
         description: Manufacture list item response
-        properties: &id024
+        properties: &id027
           id:
             type: string
             description: Manufacture ID
@@ -11104,7 +11117,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id024
+      properties: *id027
       additionalProperties: true
   - name: count
     value_type: integer
@@ -12218,7 +12231,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -12279,7 +12292,7 @@ operations:
       items:
         type: object
         description: Payment item response
-        properties: &id025
+        properties: &id028
           createdAt:
             type: string
             format: date-time
@@ -12474,7 +12487,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id025
+      properties: *id028
       additionalProperties: true
   - name: count
     value_type: integer
@@ -13806,7 +13819,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -13865,7 +13878,7 @@ operations:
       items:
         type: object
         description: Product list item response
-        properties: &id026
+        properties: &id029
           id:
             type: string
             description: Product ID
@@ -14017,7 +14030,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id026
+      properties: *id029
       additionalProperties: true
   - name: count
     value_type: integer
@@ -15883,7 +15896,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -15942,7 +15955,7 @@ operations:
       items:
         type: object
         description: Purchase invoice list item response
-        properties: &id027
+        properties: &id030
           id:
             type: string
             description: Purchase invoice ID
@@ -16111,7 +16124,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id027
+      properties: *id030
       additionalProperties: true
   - name: count
     value_type: integer
@@ -18459,7 +18472,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -18518,7 +18531,7 @@ operations:
       items:
         type: object
         description: Purchase order list item response
-        properties: &id028
+        properties: &id031
           id:
             type: string
             description: Purchase order ID
@@ -18677,7 +18690,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id028
+      properties: *id031
       additionalProperties: true
   - name: count
     value_type: integer
@@ -20652,7 +20665,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -20710,7 +20723,7 @@ operations:
       items:
         type: object
         description: PrRegistry list item response
-        properties: &id029
+        properties: &id032
           id:
             type: string
             format: uuid
@@ -20821,7 +20834,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id029
+      properties: *id032
       additionalProperties: true
   - name: count
     value_type: integer
@@ -20956,7 +20969,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -21015,7 +21028,7 @@ operations:
       items:
         type: object
         description: Sale invoice list item response
-        properties: &id030
+        properties: &id033
           id:
             type: string
             description: Sale invoice ID
@@ -21177,7 +21190,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id030
+      properties: *id033
       additionalProperties: true
   - name: count
     value_type: integer
@@ -23593,7 +23606,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -23652,7 +23665,7 @@ operations:
       items:
         type: object
         description: Sale order list item response
-        properties: &id031
+        properties: &id034
           id:
             type: string
             description: Sale order ID
@@ -23807,7 +23820,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id031
+      properties: *id034
       additionalProperties: true
   - name: count
     value_type: integer
@@ -25883,7 +25896,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -25942,7 +25955,7 @@ operations:
       items:
         type: object
         description: Sale price item response
-        properties: &id032
+        properties: &id035
           id:
             type: string
             format: uuid
@@ -25998,7 +26011,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id032
+      properties: *id035
       additionalProperties: true
   - name: count
     value_type: integer
@@ -26351,7 +26364,7 @@ operations:
             description: A documented field.
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -26408,7 +26421,7 @@ operations:
       items:
         type: object
         description: Timesheet schedule item response
-        properties: &id033
+        properties: &id036
           id:
             type: string
             format: uuid
@@ -26439,7 +26452,7 @@ operations:
       - object
       - 'null'
       description: The first record, or null.
-      properties: *id033
+      properties: *id036
       additionalProperties: true
   - name: count
     value_type: integer
@@ -27236,8 +27249,9 @@ operations:
   - blocked_address
 - operation_id: call_endpoint
   display_name: Advanced · Call any Rivile ERP endpoint
-  description: 'Sends one request to any Rivile ERP Public API path under /v1. Treated as a write whatever
-    the method: suppressed in test runs and recorded in the external-effect ledger.'
+  description: Sends one request to any Rivile ERP Public API path under /v1. Declared as an external
+    effect (suppressed in test runs, recorded in the ledger); a GET is sent as a read, so its failures
+    are plain read failures.
   operation_kind: action
   category: finance
   connection_type_ids:
@@ -27297,7 +27311,8 @@ operations:
   - name: response
     value_type: json
     schema:
-      description: Rivile ERP's JSON answer, unchanged.
+      description: Rivile ERP's JSON answer, unchanged. A non-JSON answer (a file) comes as {content_type,
+        size_bytes, base64}, with base64 only up to 1 MB.
   - name: http_status
     value_type: integer
     schema:
@@ -27403,7 +27418,7 @@ operations:
             pattern: ^\w{1,64}$
           operation:
             type: string
-            enum: *id015
+            enum: *id018
           value:
             type:
             - string
@@ -27464,6 +27479,14 @@ operations:
       type:
       - integer
       - 'null'
+  - name: stopped_by
+    value_type: text
+    schema:
+      type:
+      - string
+      - 'null'
+      description: Why the export stopped before the end (time, or an error on a later page); every page
+        read before it is in the file.
   result_fields:
   - result.artifact_handle
   - result.filename
@@ -27473,6 +27496,7 @@ operations:
   - result.complete
   - result.resume_page
   - result.total_elements
+  - result.stopped_by
   error_codes:
   - invalid_payload
   - invalid_host_envelope

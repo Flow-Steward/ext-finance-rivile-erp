@@ -108,8 +108,14 @@ class RivileTransport:
         body: Any = None,
         mutating: bool,
         binary: bool = False,
+        accept_raw: bool = False,
     ) -> Reply:
-        """Send one request; ``path`` is already filled and quoted (``/v1/...``)."""
+        """Send one request; ``path`` is already filled and quoted (``/v1/...``).
+
+        ``binary``: a file download — every 2xx answer is kept as bytes, whatever its
+        Content-Type (a JSON attachment is still a file). ``accept_raw``: a non-JSON
+        2xx answer is returned as bytes instead of being refused.
+        """
         encoded: bytes | None = None
         if body is not None:
             encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -128,7 +134,9 @@ class RivileTransport:
                 raise DeadlineReached
             self._call_timeout = min(self._timeout_seconds, remaining)
             try:
-                return self._send(method, url, encoded, mutating=mutating, binary=binary)
+                return self._send(
+                    method, url, encoded, mutating=mutating, binary=binary, accept_raw=accept_raw
+                )
             except ExtensionError as exc:
                 if exc.code != errors.RATE_LIMITED or attempt == len(BACKOFF_SECONDS):
                     raise
@@ -144,7 +152,14 @@ class RivileTransport:
     # -- one request -------------------------------------------------------
 
     def _send(
-        self, method: str, url: str, encoded: bytes | None, *, mutating: bool, binary: bool
+        self,
+        method: str,
+        url: str,
+        encoded: bytes | None,
+        *,
+        mutating: bool,
+        binary: bool,
+        accept_raw: bool = False,
     ) -> Reply:
         headers = {
             "Accept": "application/octet-stream, application/json"
@@ -159,7 +174,7 @@ class RivileTransport:
         self._pace()
         status, raw, response_headers = self._open(request, mutating=mutating)
         content_type = _header(response_headers, "Content-Type").lower()
-        if binary and "json" not in content_type:
+        if binary or (accept_raw and "json" not in content_type):
             return Reply(status=status, data=raw, content_type=content_type)
         raw = _redact_bytes(raw, self._connection)
         if not raw.strip():
@@ -189,6 +204,14 @@ class RivileTransport:
             ) from exc
         return Reply(status=status, data=data, content_type=content_type)
 
+    def _read_expiry(self) -> float | None:
+        """When reading an answer must stop: the request deadline plus its minimum window.
+
+        The socket timeout applies to each receive, so an answer trickling in could
+        otherwise run past the step's time limit.
+        """
+        return None if self.deadline is None else self.deadline + MIN_CALL_WINDOW_SECONDS
+
     def _pace(self) -> None:
         if self._last_sent is not None:
             wait = MIN_INTERVAL_SECONDS - (self.clock() - self._last_sent)
@@ -206,7 +229,14 @@ class RivileTransport:
             ) as response:
                 status = int(getattr(response, "status", 0) or getattr(response, "code", 0) or 0)
                 headers = getattr(response, "headers", None)
-                raw = read_bounded(response, MAX_RESPONSE_BYTES, mutating=mutating, status=status)
+                raw = read_bounded(
+                    response,
+                    MAX_RESPONSE_BYTES,
+                    mutating=mutating,
+                    status=status,
+                    expires=self._read_expiry(),
+                    clock=self.clock,
+                )
         except HTTPError as exc:
             raise _http_error(exc, self._connection, mutating=mutating) from exc
         except PinnedPeerError as exc:
@@ -238,14 +268,9 @@ class RivileTransport:
                 "The connection to Rivile ERP failed",
                 **_transport_failure_facts(mutating=mutating),
             ) from exc
-        if 300 <= status < 400:
-            raise ExtensionError(
-                errors.REDIRECT_REJECTED,
-                "Rivile ERP redirected the request and it was not followed",
-                definitely_no_external_effect=not mutating,
-                external_effect_status="failed" if not mutating else "timeout_unknown",
-            )
-        if status >= 400:
+        if status >= 300:
+            # The SDK refuses redirects by raising HTTPError (handled above); this
+            # covers an opener that returns a 3xx or 4xx/5xx response instead.
             raise _status_error(
                 status,
                 _redact_bytes(raw, self._connection)[:MAX_ERROR_BODY_BYTES],
@@ -256,14 +281,38 @@ class RivileTransport:
         return status, raw, headers
 
 
-def read_bounded(response: Any, limit: int, *, mutating: bool = False, status: int = 0) -> bytes:
-    """Read at most ``limit`` bytes; an oversized answer to a write is an unknown outcome."""
+def read_bounded(
+    response: Any,
+    limit: int,
+    *,
+    mutating: bool = False,
+    status: int = 0,
+    expires: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> bytes:
+    """Read at most ``limit`` bytes before ``expires``.
+
+    An oversized or too slow answer to a write is an unknown outcome; to a read it
+    is "out of time" (DeadlineReached) or "too large", with no effect.
+    """
     buffer = bytearray()
     while True:
         chunk = response.read(min(CHUNK_BYTES, limit + 1 - len(buffer)))
         if not chunk:
             break
         buffer.extend(chunk)
+        if expires is not None and clock() > expires:
+            if not mutating:
+                raise DeadlineReached
+            raise ExtensionError(
+                errors.TIMEOUT_UNKNOWN,
+                f"Rivile ERP accepted the request (HTTP {status}) but its answer did not arrive "
+                "in time; check in Rivile ERP whether it was applied",
+                failure_class="transient",
+                retryable=False,
+                definitely_no_external_effect=False,
+                external_effect_status="timeout_unknown",
+            )
         if len(buffer) > limit:
             raise ExtensionError(
                 errors.TIMEOUT_UNKNOWN if mutating else errors.RESPONSE_TOO_LARGE,
@@ -378,6 +427,14 @@ def _status_error(
             data_errors=violations,
         )
 
+    if 300 <= status < 400:
+        # Redirects are never followed; a write may still have been applied.
+        return failure(
+            errors.REDIRECT_REJECTED,
+            f"Rivile ERP redirected the request (HTTP {status}) and it was not followed",
+            retryable=False,
+            no_effect=not mutating,
+        )
     if status in {401, 403}:
         return failure(
             errors.AUTHENTICATION_FAILED,

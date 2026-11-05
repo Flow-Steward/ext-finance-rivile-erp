@@ -32,6 +32,11 @@ it in `X-SessionToken`. There is no sandbox; Rivile ERP's 30-day free trial can 
 
 ## Writes and failures
 
+- Numbers use "." as the decimal separator; "1,500" is refused (it could mean 1.5 or 1500).
+- Codes that go into a lookup filter (client, registration, VAT, product, barcode) are limited to
+  letters, digits, spaces and `. _ / -`; codes sent only in a request body (lines, units,
+  departments, currencies, accounts) may be any printable text, such as `MĖSA-01` or `m²`.
+
 - Every POST, PATCH and DELETE is a declared external effect, suppressed in test runs.
 - Rivile ERP has no idempotency key: a timeout, 5xx or lost connection after a write was sent is
   `timeout_unknown` and is never retried automatically. HTTP 429 (not documented) is retried after
@@ -59,6 +64,13 @@ it in `X-SessionToken`. There is no sandbox; Rivile ERP's 30-day free trial can 
    limit), so it is retried after 1, 2, 4 and 8 seconds — writes included.
 9. Which `statusId` means "posted" is not documented: an existing invoice is reported with its raw
    `status_id` and `posted: null` unless the step posts it.
+10. Find or create customer / product report `external_effect_status: succeeded` even when they
+    only found the record: Core has no "success without effect" status an extension may report
+    ("suppressed" is reserved to the host), and "failed" would turn a successful run into a failure.
+    The ledger therefore records these steps as completed effects.
+11. An invoice found by number counts as "already created" only when client, number and operation
+    date all match; the same number on another date stops the step. Rivile documents no "already
+    posted" error, so any refusal to post fails the step.
 
 ## Development
 

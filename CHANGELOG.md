@@ -17,6 +17,17 @@ First release, not yet verified against a live Rivile ERP company (1.0.0 follows
 - Invoices take up to 100 lines, Rivile's limit for creating a document in one request. A client
   code must name an existing client; clients are created only by registration or VAT code.
 - Client debt is totalled per registry type and says when it is partial.
+- An invoice found by number counts as already created only when client, number and date match;
+  an older document with the same number, or several same-day matches, stop the step with no
+  write; a refusal to post an existing invoice fails the step.
+- Stock levels report base-unit and alternative-unit quantities separately; stock levels, product
+  prices and client debt take a start page and return `next_page` and `complete`.
+- A malformed list answer is an error, never "not found", so it cannot lead to a create.
+- Reading an answer stops at the step's time limit; Export keeps every page read when a later page
+  fails and says why (`stopped_by`); a file download keeps any 2xx answer as bytes; redirects are
+  refused, and unknown for writes.
+- Call any Rivile ERP endpoint sends GET as a read and returns a non-JSON answer as Base64.
+- Numbers take "." only; codes sent only in a request body may contain any printable letters.
 - Not offered, because the Rivile ERP API has no upload: attaching a file to a document.
 - Icon: the official Rivile mark from [rivile.lt/favicon.svg](https://www.rivile.lt/favicon.svg) (© Rivile), scaled to
   128×128 with proportions and colour unchanged, used to identify the integration.

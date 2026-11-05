@@ -132,8 +132,10 @@ forms:
     label: Number
     widget_type: text
     required: false
-    help_text: The document number. With a number the step first looks for a sales invoice with this number
-      for this client and returns it instead of creating a second one. Without it Rivile numbers the document.
+    help_text: 'The document number. With a number the step first looks for a sales invoice with this
+      number, client and date: if one exists it is returned (and posted if asked) instead of creating
+      a second one; the same number with another date stops the step. Without a number Rivile numbers
+      the document.'
   - name: date
     label: Date
     widget_type: text
@@ -148,14 +150,12 @@ forms:
     label: Department
     widget_type: text
     required: true
-    help_text: The department (warehouse) code used for every line that does not name its own. Letters,
-      digits, spaces and . _ / - only.
+    help_text: The department (warehouse) code used for every line that does not name its own.
   - name: currency_code
     label: Currency
     widget_type: text
     required: false
-    help_text: 'The currency code, for example EUR. Default: the company''s base currency. Letters, digits,
-      spaces and . _ / - only.'
+    help_text: 'The currency code, for example EUR. Default: the company''s base currency.'
   - name: prices_include_tax
     label: Prices include VAT
     widget_type: boolean
@@ -243,9 +243,10 @@ forms:
     label: Number
     widget_type: text
     required: false
-    help_text: The document number. With a number the step first looks for a purchase invoice with this
-      number for this client and returns it instead of creating a second one. Without it Rivile numbers
-      the document.
+    help_text: 'The document number. With a number the step first looks for a purchase invoice with this
+      number, client and date: if one exists it is returned (and posted if asked) instead of creating
+      a second one; the same number with another date stops the step. Without a number Rivile numbers
+      the document.'
   - name: date
     label: Date
     widget_type: text
@@ -260,14 +261,12 @@ forms:
     label: Department
     widget_type: text
     required: true
-    help_text: The department (warehouse) code used for every line that does not name its own. Letters,
-      digits, spaces and . _ / - only.
+    help_text: The department (warehouse) code used for every line that does not name its own.
   - name: currency_code
     label: Currency
     widget_type: text
     required: false
-    help_text: 'The currency code, for example EUR. Default: the company''s base currency. Letters, digits,
-      spaces and . _ / - only.'
+    help_text: 'The currency code, for example EUR. Default: the company''s base currency.'
   - name: prices_include_tax
     label: Prices include VAT
     widget_type: boolean
@@ -354,7 +353,7 @@ forms:
     label: Client code
     widget_type: text
     required: true
-    help_text: The code of the client who paid or is paid. Letters, digits, spaces and . _ / - only.
+    help_text: The code of the client who paid or is paid.
   - name: amount
     label: Amount
     widget_type: text
@@ -364,7 +363,7 @@ forms:
     label: Currency
     widget_type: text
     required: false
-    help_text: 'The currency code. Default: the base currency. Letters, digits, spaces and . _ / - only.'
+    help_text: 'The currency code. Default: the base currency.'
   - name: date
     label: Date
     widget_type: text
@@ -374,12 +373,12 @@ forms:
     label: Money account
     widget_type: text
     required: false
-    help_text: The bank or cash account code. Letters, digits, spaces and . _ / - only.
+    help_text: The bank or cash account code.
   - name: payment_method_code
     label: Payment method
     widget_type: text
     required: false
-    help_text: The payment method code. Letters, digits, spaces and . _ / - only.
+    help_text: The payment method code.
   - name: document_no
     label: Number
     widget_type: text
@@ -443,8 +442,7 @@ forms:
     label: Unit
     widget_type: text
     required: false
-    help_text: The unit of measure code for a new product, for example VNT. Letters, digits, spaces and
-      . _ / - only.
+    help_text: The unit of measure code for a new product, for example VNT.
   - name: description
     label: Description
     widget_type: textarea
@@ -463,6 +461,11 @@ forms:
     widget_type: text
     required: false
     help_text: Only this department (warehouse). Letters, digits, spaces and . _ / - only.
+  - name: page
+    label: Page
+    widget_type: number
+    required: false
+    help_text: The page to start from, counted from 0; pass next_page to continue.
   - name: max_pages
     label: Max pages
     widget_type: number
@@ -491,6 +494,16 @@ forms:
     widget_type: text
     required: false
     help_text: Only prices of this department. Letters, digits, spaces and . _ / - only.
+  - name: page
+    label: Page
+    widget_type: number
+    required: false
+    help_text: The page to start from, counted from 0; pass next_page to continue.
+  - name: max_pages
+    label: Max pages
+    widget_type: number
+    required: false
+    help_text: How many pages of 100 records to read at most. Default 10.
 - operation_id: changes_since
   title: Changes since
   fields:
@@ -555,6 +568,11 @@ forms:
     widget_type: text
     required: true
     help_text: The client whose open amounts to read. Letters, digits, spaces and . _ / - only.
+  - name: page
+    label: Page
+    widget_type: number
+    required: false
+    help_text: The page to start from, counted from 0; pass next_page to continue.
   - name: max_pages
     label: Max pages
     widget_type: number

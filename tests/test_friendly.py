@@ -93,27 +93,6 @@ def _lines(count: int) -> list[dict]:
     return [{"item_code": f"P{n}", "quantity": "1.5", "price": "10.10"} for n in range(count)]
 
 
-def test_invoice_with_an_existing_number_is_returned_not_duplicated(make_factory) -> None:
-    existing = {"id": UUID_B, "documentNo": "S-1", "totalAmount": 12.1}
-    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)))
-    response, _ = run(
-        make_factory,
-        opener,
-        "create_sales_invoice",
-        {"client_code": "000005", "number": "S-1", "department_code": "D1", "lines": _lines(1)},
-    )
-    result = response["result"]
-    assert result["created"] is False
-    assert result["posted"] is None
-    assert result["document_id"] == UUID_B
-    assert result["total_amount"] == "12.10"
-    assert _filter(opener.requests[1]) == [
-        {"operation": "EQUAL", "name": "documentNo", "value": "S-1"},
-        {"operation": "EQUAL", "name": "clientCode", "value": "000005"},
-    ]
-    assert all(r["method"] == "GET" for r in opener.requests)
-
-
 def test_invoice_creates_lines_in_one_request_and_posts(make_factory) -> None:
     created = {"id": UUID_B, "documentNo": "S-2", "totalAmount": 1.0}
     fresh = dict(created, totalAmount=1818.0, totalTaxAmount=315.52, totalAmountWithTax=2133.52)
@@ -209,49 +188,6 @@ def test_invoice_failing_after_create_reports_what_was_saved(make_factory) -> No
     assert response["retryable"] is False
     assert "sales invoice S-3 created with 3 lines" in response["error"]
     assert "Posting the sales invoice" in response["error"]
-
-
-def test_existing_invoice_is_posted_when_asked(make_factory) -> None:
-    existing = {"id": UUID_B, "documentNo": "S-1", "statusId": 1}
-    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)), (200, True))
-    response, _ = run(
-        make_factory,
-        opener,
-        "create_sales_invoice",
-        {
-            "client_code": "000005",
-            "number": "S-1",
-            "department_code": "D1",
-            "lines": _lines(1),
-            "post": True,
-        },
-    )
-    result = response["result"]
-    assert result["created"] is False
-    assert result["posted"] is True
-    assert result["status_id"] == 1
-    assert opener.requests[-1]["path"].endswith(f"/v1/sale-invoices/{UUID_B}/post")
-
-
-def test_existing_invoice_that_cannot_be_posted_is_reported(make_factory) -> None:
-    existing = {"id": UUID_B, "documentNo": "S-1"}
-    refusal = {"code": "error.sale-invoice.post.already-posted"}
-    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)), (400, refusal))
-    response, _ = run(
-        make_factory,
-        opener,
-        "create_sales_invoice",
-        {
-            "client_code": "000005",
-            "number": "S-1",
-            "department_code": "D1",
-            "lines": _lines(1),
-            "post": True,
-        },
-    )
-    assert response["ok"] is True
-    assert response["result"]["posted"] is None
-    assert "already-posted" in response["result"]["post_note"]
 
 
 def test_unknown_client_code_creates_nothing(make_factory) -> None:
@@ -405,19 +341,6 @@ def test_changes_since_filters_updated_at(make_factory) -> None:
     ]
 
 
-def test_stock_levels_totals_per_product_and_unit(make_factory) -> None:
-    rows = [
-        {"productCode": "P1", "uomCode": "VNT", "departmentCode": "D1", "qtyAvailable": 1.25},
-        {"productCode": "P1", "uomCode": "VNT", "departmentCode": "D2", "qtyAvailable": 2},
-        {"productCode": "P2", "uomCode": "KG", "departmentCode": "D1", "qtyAvailable": 7},
-    ]
-    opener = FakeOpener((200, page(*rows)))
-    response, _ = run(make_factory, opener, "stock_levels", {})
-    totals = {(t["product_code"], t["unit"]): t["available"] for t in response["result"]["totals"]}
-    assert totals == {("P1", "VNT"): "3.2500", ("P2", "KG"): "7.0000"}
-    assert response["result"]["items"][0]["available"] == "1.2500"
-
-
 def test_changes_since_continues_from_a_page(make_factory) -> None:
     opener = FakeOpener((200, page({"id": "9"}, total_pages=5)))
     response, _ = run(
@@ -494,3 +417,163 @@ def test_everyday_writes_send_nothing_in_test_mode(make_factory) -> None:
     assert response["ok"] is True
     assert response["result"]["created"] is False
     assert opener.requests == []
+
+
+TODAY = __import__("datetime").date.today().isoformat()
+
+
+def _invoice_inputs(**extra) -> dict:
+    return {
+        "client_code": "000005",
+        "number": "S-1",
+        "department_code": "D1",
+        "lines": _lines(1),
+        **extra,
+    }
+
+
+def test_invoice_with_the_same_number_and_date_is_returned_not_duplicated(make_factory) -> None:
+    existing = {"id": UUID_B, "documentNo": "S-1", "opDate": TODAY, "totalAmount": 12.1}
+    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)))
+    response, _ = run(make_factory, opener, "create_sales_invoice", _invoice_inputs())
+    result = response["result"]
+    assert result["created"] is False and result["posted"] is None
+    assert result["document_id"] == UUID_B and result["total_amount"] == "12.10"
+    assert _filter(opener.requests[1]) == [
+        {"operation": "EQUAL", "name": "documentNo", "value": "S-1"},
+        {"operation": "EQUAL", "name": "clientCode", "value": "000005"},
+    ]
+    assert all(r["method"] == "GET" for r in opener.requests)
+
+
+def test_same_number_with_another_date_stops_without_writing(make_factory) -> None:
+    old = {"id": UUID_B, "documentNo": "S-1", "opDate": "2025-01-10"}
+    opener = FakeOpener((200, page(CLIENT)), (200, page(old)))
+    response, _ = run(
+        make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-01-10", post=True)
+    )
+    assert response["error_code"] == "invalid_payload"
+    assert "already exists" in response["error"] and "2025-01-10" in response["error"]
+    assert response["definitely_no_external_effect"] is True
+    assert all(r["method"] == "GET" for r in opener.requests)
+
+
+def test_several_same_day_matches_are_refused(make_factory) -> None:
+    rows = [{"id": UUID_A, "opDate": "2026-02-01"}, {"id": UUID_B, "opDate": "2026-02-01"}]
+    opener = FakeOpener((200, page(CLIENT)), (200, page(*rows)))
+    response, _ = run(
+        make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-02-01", post=True)
+    )
+    assert response["error_code"] == "invalid_payload"
+    assert "2 sales invoices" in response["error"]
+    assert all(r["method"] == "GET" for r in opener.requests)
+
+
+def test_existing_invoice_is_posted_when_asked(make_factory) -> None:
+    existing = {"id": UUID_B, "documentNo": "S-1", "opDate": "2026-03-01", "statusId": 1}
+    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)), (200, True))
+    response, _ = run(
+        make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-03-01", post=True)
+    )
+    result = response["result"]
+    assert result["created"] is False and result["posted"] is True and result["status_id"] == 1
+    assert opener.requests[-1]["path"].endswith(f"/v1/sale-invoices/{UUID_B}/post")
+
+
+def test_a_refused_post_of_an_existing_invoice_fails_the_step(make_factory) -> None:
+    existing = {"id": UUID_B, "documentNo": "S-1", "opDate": "2026-03-01"}
+    refusal = {"code": "error.sale-invoice.post.period-closed"}
+    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)), (400, refusal))
+    response, _ = run(
+        make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-03-01", post=True)
+    )
+    assert response["error_code"] == "upstream_validation_failed"
+    assert "period-closed" in response["error"]
+    assert response["definitely_no_external_effect"] is True
+
+
+def test_stock_levels_base_and_alternative_units(make_factory) -> None:
+    rows = [
+        {
+            "productCode": "P1",
+            "uomCode": "DEZ",
+            "uomRatio": 12,
+            "departmentCode": "D1",
+            "qtyAvailable": 24,
+            "qtyAltAvailable": 2,
+        },
+        {
+            "productCode": "P1",
+            "uomCode": "DEZ",
+            "uomRatio": 12,
+            "departmentCode": "D2",
+            "qtyAvailable": 1.25,
+        },
+        {"productCode": "P2", "uomCode": "KG", "departmentCode": "D1", "qtyAvailable": 7},
+    ]
+    opener = FakeOpener((200, page(*rows, total_pages=2)))
+    response, _ = run(make_factory, opener, "stock_levels", {"max_pages": 1})
+    result = response["result"]
+    totals = {t["product_code"]: t["available"] for t in result["totals"]}
+    assert totals == {"P1": "25.2500", "P2": "7.0000"}
+    first = result["items"][0]
+    assert first["available"] == "24.0000" and first["alt_unit"] == "DEZ"
+    assert first["alt_available"] == "2.0000" and first["alt_unit_ratio"] == "12.0000"
+    assert result["complete"] is False and result["next_page"] == 1
+
+
+def test_prices_and_debt_continue_from_a_page(make_factory) -> None:
+    opener = FakeOpener((200, page({"productCode": "P1", "priceExcludingTax": 1}, total_pages=9)))
+    response, _ = run(
+        make_factory, opener, "product_prices", {"product_code": "P1", "page": 2, "max_pages": 1}
+    )
+    assert opener.requests[0]["query"]["page"] == "2"
+    assert response["result"]["next_page"] == 3 and response["result"]["complete"] is False
+    opener = FakeOpener((200, page({"totalBaseDue": 1}, total_pages=1)))
+    response, _ = run(make_factory, opener, "client_debt", {"client_code": "C1", "page": 0})
+    assert response["result"]["complete"] is True and response["result"]["next_page"] is None
+
+
+def test_a_comma_is_not_a_decimal_separator(make_factory) -> None:
+    opener = FakeOpener()
+    response, _ = run(
+        make_factory,
+        opener,
+        "register_payment",
+        {"direction": "received", "client_code": "C1", "amount": "1,500"},
+    )
+    assert response["error_code"] == "invalid_payload"
+    assert opener.requests == []
+
+
+def test_body_codes_may_use_lithuanian_letters(make_factory) -> None:
+    created = {"id": UUID_B, "documentNo": "S-9"}
+    opener = FakeOpener((200, page(CLIENT)), (201, created))
+    response, _ = run(
+        make_factory,
+        opener,
+        "create_sales_invoice",
+        {
+            "client_code": "000005",
+            "department_code": "SANDĖLIS",
+            "lines": [{"item_code": "MĖSA-01", "unit": "m²", "quantity": "2"}],
+        },
+    )
+    assert response["ok"] is True, response
+    line = opener.requests[1]["body"]["lines"][0]
+    assert line == {
+        "itemCode": "MĖSA-01",
+        "qtyAlt": 2,
+        "departmentCode": "SANDĖLIS",
+        "uomAltCode": "m²",
+    }
+
+
+def test_a_malformed_lookup_never_leads_to_a_create(make_factory) -> None:
+    opener = FakeOpener((200, {"unexpected": "shape"}))
+    response, _ = run(
+        make_factory, opener, "find_or_create_client", {"reg_code": "222", "name": "UAB Y"}
+    )
+    assert response["error_code"] == "invalid_json_response"
+    assert response["definitely_no_external_effect"] is True
+    assert [r["method"] for r in opener.requests] == ["GET"]

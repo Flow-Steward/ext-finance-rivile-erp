@@ -151,7 +151,8 @@ class FakeOpener:
             raw = body.encode("utf-8")
         else:
             raw = json.dumps(body).encode("utf-8")
-        if status >= 400:
+        if status >= 300:
+            # Like the SDK's no-redirect opener: a 3xx is raised as HTTPError too.
             message = Message()
             for key, value in headers.items():
                 message[key] = value

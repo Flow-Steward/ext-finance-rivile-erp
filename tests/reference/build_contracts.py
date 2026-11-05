@@ -847,7 +847,12 @@ def call_endpoint_operation() -> dict[str, Any]:
         {
             "name": "response",
             "value_type": "json",
-            "schema": {"description": "Rivile ERP's JSON answer, unchanged."},
+            "schema": {
+                "description": (
+                    "Rivile ERP's JSON answer, unchanged. A non-JSON answer (a file) comes as "
+                    "{content_type, size_bytes, base64}, with base64 only up to 1 MB."
+                )
+            },
         },
         {"name": "http_status", "value_type": "integer", "schema": {"type": "integer"}},
         {"name": "duration_ms", "value_type": "integer", "schema": {"type": ["integer", "null"]}},
@@ -857,9 +862,9 @@ def call_endpoint_operation() -> dict[str, Any]:
         "operation_id": "call_endpoint",
         "display_name": f"{ADVANCED_PREFIX}Call any Rivile ERP endpoint",
         "description": (
-            "Sends one request to any Rivile ERP Public API path under /v1. Treated as a write "
-            "whatever the method: suppressed in test runs and recorded in the external-effect "
-            "ledger."
+            "Sends one request to any Rivile ERP Public API path under /v1. Declared as an external "
+            "effect (suppressed in test runs, recorded in the ledger); a GET is sent as a read, so "
+            "its failures are plain read failures."
         ),
         "operation_kind": "action",
         "category": CATEGORY,
@@ -958,6 +963,17 @@ def export_list_operation(paged: list[str]) -> dict[str, Any]:
             "name": "total_elements",
             "value_type": "integer",
             "schema": {"type": ["integer", "null"]},
+        },
+        {
+            "name": "stopped_by",
+            "value_type": "text",
+            "schema": {
+                "type": ["string", "null"],
+                "description": (
+                    "Why the export stopped before the end (time, or an error on a later page); "
+                    "every page read before it is in the file."
+                ),
+            },
         },
     ]
     return {

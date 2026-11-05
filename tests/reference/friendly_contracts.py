@@ -63,6 +63,11 @@ def code(name: str, title: str, description: str, *, required: bool = False) -> 
     )
 
 
+def body_code(name: str, title: str, description: str, *, required: bool = False) -> dict[str, Any]:
+    """A code sent only in the request body: any printable text, up to 50 characters."""
+    return text(name, title, description, required=required, maxLength=50)
+
+
 def number(name: str, title: str, description: str, *, required: bool = False) -> dict[str, Any]:
     return {
         "name": name,
@@ -202,8 +207,9 @@ def invoice(kind: str) -> dict[str, Any]:
             "number",
             "Number",
             f"The document number. With a number the step first looks for a {noun} with this "
-            "number for this client and returns it instead of creating a second one. Without it "
-            "Rivile numbers the document.",
+            "number, client and date: if one exists it is returned (and posted if asked) instead "
+            "of creating a second one; the same number with another date stops the step. "
+            "Without a number Rivile numbers the document.",
             maxLength=50,
         ),
         text("date", "Date", "The operation date, YYYY-MM-DD. Default: today.", **DATE),
@@ -213,13 +219,13 @@ def invoice(kind: str) -> dict[str, Any]:
             "The date printed on the document, YYYY-MM-DD. Default: the operation date.",
             **DATE,
         ),
-        code(
+        body_code(
             "department_code",
             "Department",
             "The department (warehouse) code used for every line that does not name its own.",
             required=True,
         ),
-        code(
+        body_code(
             "currency_code",
             "Currency",
             "The currency code, for example EUR. Default: the company's base currency.",
@@ -270,13 +276,7 @@ def invoice(kind: str) -> dict[str, Any]:
             "boolean",
             ["boolean", "null"],
             "True when this step posted the document; null when an existing document was "
-            "returned and not posted by this step.",
-        ),
-        out(
-            "post_note",
-            "text",
-            ["string", "null"],
-            "Why Rivile refused to post an existing document, for example because it already is.",
+            "returned without posting (Rivile does not document which status means posted).",
         ),
         out("record", "object", ["object", "null"], "The document as Rivile ERP returned it."),
     ]
@@ -293,6 +293,24 @@ def invoice(kind: str) -> dict[str, Any]:
         "inputs": inputs,
         "outputs": outputs,
     }
+
+
+START_PAGE = {
+    "name": "page",
+    "value_type": "integer",
+    "required": False,
+    "schema": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1000000,
+        "title": "Page",
+        "description": "The page to start from, counted from 0; pass next_page to continue.",
+    },
+}
+CONTINUATION = [
+    out("next_page", "integer", ["integer", "null"], "The page to continue from, or null."),
+    out("complete", "boolean", "boolean", "False when more rows exist than were read."),
+]
 
 
 def operations() -> list[dict[str, Any]]:
@@ -387,7 +405,7 @@ def operations() -> list[dict[str, Any]]:
                     ["received", "sent"],
                     required=True,
                 ),
-                code(
+                body_code(
                     "client_code",
                     "Client code",
                     "The code of the client who paid or is paid.",
@@ -403,10 +421,12 @@ def operations() -> list[dict[str, Any]]:
                         "description": "The amount in the payment currency, for example 121.00.",
                     },
                 },
-                code("currency_code", "Currency", "The currency code. Default: the base currency."),
+                body_code(
+                    "currency_code", "Currency", "The currency code. Default: the base currency."
+                ),
                 text("date", "Date", "The payment date, YYYY-MM-DD. Default: today.", **DATE),
-                code("account_code", "Money account", "The bank or cash account code."),
-                code("payment_method_code", "Payment method", "The payment method code."),
+                body_code("account_code", "Money account", "The bank or cash account code."),
+                body_code("payment_method_code", "Payment method", "The payment method code."),
                 text("document_no", "Number", "The payment document number.", maxLength=50),
                 text("purpose", "Purpose", "The payment purpose text.", maxLength=500),
                 text(
@@ -456,7 +476,7 @@ def operations() -> list[dict[str, Any]]:
                     "Whether a new product is a stocked product or a service. Default: product.",
                     [1, 2],
                 ),
-                code(
+                body_code(
                     "unit", "Unit", "The unit of measure code for a new product, for example VNT."
                 ),
                 text(
@@ -485,6 +505,7 @@ def operations() -> list[dict[str, Any]]:
                 CONNECTION,
                 code("product_code", "Product code", "Only this product. Default: all products."),
                 code("department_code", "Department", "Only this department (warehouse)."),
+                START_PAGE,
                 paging,
             ],
             "outputs": [
@@ -492,16 +513,19 @@ def operations() -> list[dict[str, Any]]:
                     "items",
                     "array",
                     "array",
-                    "One row per product, department and lot: available, in warehouse, reserved.",
+                    "One row per product, department and lot: available, in warehouse and "
+                    "reserved in the product's base unit, and the same in the alternative unit "
+                    "(alt_unit, alt_unit_ratio, alt_available…).",
                 ),
                 out("count", "integer", "integer", "Rows returned."),
                 out(
                     "totals",
                     "array",
                     "array",
-                    "Available quantity summed per product and unit, as exact decimals.",
+                    "Available quantity summed per product, in its base unit, as exact decimals.",
                 ),
                 out("has_more", "boolean", "boolean", "True when there are more rows to read."),
+                *CONTINUATION,
             ],
         },
         {
@@ -522,6 +546,8 @@ def operations() -> list[dict[str, Any]]:
                 ),
                 code("currency_code", "Currency", "Only prices in this currency."),
                 code("department_code", "Department", "Only prices of this department."),
+                START_PAGE,
+                paging,
             ],
             "outputs": [
                 out(
@@ -532,6 +558,7 @@ def operations() -> list[dict[str, Any]]:
                 ),
                 out("count", "integer", "integer", "Prices returned."),
                 out("has_more", "boolean", "boolean", "True when there are more prices to read."),
+                *CONTINUATION,
             ],
         },
         {
@@ -599,6 +626,7 @@ def operations() -> list[dict[str, Any]]:
                     "The client whose open amounts to read.",
                     required=True,
                 ),
+                START_PAGE,
                 paging,
             ],
             "outputs": [
@@ -625,6 +653,12 @@ def operations() -> list[dict[str, Any]]:
                 out("count", "integer", "integer", "Documents returned."),
                 out("complete", "boolean", "boolean", "False when more rows exist than were read."),
                 out("has_more", "boolean", "boolean", "True when there are more rows to read."),
+                out(
+                    "next_page",
+                    "integer",
+                    ["integer", "null"],
+                    "The page to continue from, or null.",
+                ),
             ],
         },
     ]

@@ -193,7 +193,6 @@ actions:
   - total_with_tax
   - status_id
   - posted
-  - post_note
   - record
   - external_effect_status
   - definitely_no_external_effect
@@ -300,7 +299,6 @@ actions:
   - total_with_tax
   - status_id
   - posted
-  - post_note
   - record
   - external_effect_status
   - definitely_no_external_effect
@@ -526,6 +524,9 @@ actions:
   - name: department_code
     type: string
     required: false
+  - name: page
+    type: integer
+    required: false
   - name: max_pages
     type: integer
     required: false
@@ -534,6 +535,8 @@ actions:
   - count
   - totals
   - has_more
+  - next_page
+  - complete
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -576,10 +579,18 @@ actions:
   - name: department_code
     type: string
     required: false
+  - name: page
+    type: integer
+    required: false
+  - name: max_pages
+    type: integer
+    required: false
   result_fields:
   - prices
   - count
   - has_more
+  - next_page
+  - complete
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -662,6 +673,9 @@ actions:
   - name: client_code
     type: string
     required: true
+  - name: page
+    type: integer
+    required: false
   - name: max_pages
     type: integer
     required: false
@@ -673,6 +687,7 @@ actions:
   - count
   - complete
   - has_more
+  - next_page
   error_codes:
   - invalid_payload
   - invalid_host_envelope
@@ -6767,8 +6782,9 @@ actions:
   - blocked_address
 - action_id: call_endpoint
   title: Advanced · Call any Rivile ERP endpoint
-  description: 'Sends one request to any Rivile ERP Public API path under /v1. Treated as a write whatever
-    the method: suppressed in test runs and recorded in the external-effect ledger.'
+  description: Sends one request to any Rivile ERP Public API path under /v1. Declared as an external
+    effect (suppressed in test runs, recorded in the ledger); a GET is sent as a read, so its failures
+    are plain read failures.
   required_scopes:
   - extension:invoke
   handler:
@@ -6852,6 +6868,7 @@ actions:
   - complete
   - resume_page
   - total_elements
+  - stopped_by
   error_codes:
   - invalid_payload
   - invalid_host_envelope

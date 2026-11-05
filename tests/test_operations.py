@@ -356,6 +356,10 @@ def test_a_redirect_on_a_write_is_an_unknown_outcome(make_factory) -> None:
     assert response["error_code"] == "redirect_rejected"
     assert response["external_effect_status"] == "timeout_unknown"
     assert response["definitely_no_external_effect"] is False
+    opener = FakeOpener((302, "", {"Location": "https://elsewhere.example/"}))
+    response, _f, _s = run(make_factory, opener, "get_clients_id", {"id": UUID_A})
+    assert response["error_code"] == "redirect_rejected"
+    assert response["definitely_no_external_effect"] is True
 
 
 def test_an_unreadable_answer_to_a_write_says_it_was_accepted(make_factory) -> None:
@@ -396,3 +400,102 @@ def test_a_key_in_a_long_error_body_is_redacted_before_it_is_cut(make_factory) -
     response, _f, _s = run(make_factory, opener, "get_clients_id", {"id": UUID_A})
     text = json.dumps(response)
     assert API_KEY[:10] not in text
+
+
+class SlowResponse:
+    """An answer that arrives in small pieces while the clock runs."""
+
+    def __init__(self, clock, chunks: int, seconds_per_chunk: float) -> None:
+        self.status = 200
+        self.headers = {"Content-Type": "application/json"}
+        self._clock = clock
+        self._left = chunks
+        self._step = seconds_per_chunk
+
+    def read(self, size: int = -1) -> bytes:
+        if self._left == 0:
+            return b""
+        self._left -= 1
+        self._clock.now += self._step
+        return b" "
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return None
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _slow_run(operation_id: str, inputs: dict, make_factory):
+    clock = Clock()
+    requests = []
+
+    def opener(request, *, timeout_seconds, purpose):
+        requests.append(request)
+        return SlowResponse(clock, chunks=1000, seconds_per_chunk=5.0)
+
+    def factory(connection):
+        transport = make_factory(FakeOpener())(connection)
+        transport._opener = opener
+        transport.clock = clock
+        return transport
+
+    return handle_runtime(payload(operation_id, inputs), transport_factory=factory), requests
+
+
+def test_a_trickling_read_stops_at_the_step_deadline(make_factory) -> None:
+    response, requests = _slow_run("get_clients_id", {"id": UUID_A}, make_factory)
+    assert response["error_code"] == "timeout"
+    assert response["definitely_no_external_effect"] is True
+    assert len(requests) == 1
+
+
+def test_a_trickling_answer_to_a_write_is_an_unknown_outcome(make_factory) -> None:
+    response, _requests = _slow_run("post_lots", {"body": {"code": "L1"}}, make_factory)
+    assert response["error_code"] == "timeout_unknown"
+    assert response["definitely_no_external_effect"] is False
+
+
+def test_export_keeps_what_was_read_when_a_later_page_fails(make_factory) -> None:
+    opener = FakeOpener((200, page({"id": "1"}, {"id": "2"}, total_pages=3)), (502, ""))
+    response, _f, sink = run(make_factory, opener, "export_list", {"list": "/v1/products"})
+    result = response["result"]
+    assert response["ok"] is True
+    assert result["complete"] is False and result["resume_page"] == 1
+    assert result["record_count"] == 2
+    assert result["stopped_by"].startswith("upstream_failure")
+    assert len(sink.writes[0]["body"].splitlines()) == 2
+
+
+def test_call_endpoint_get_is_a_read(make_factory) -> None:
+    response, _f, _s = run(
+        make_factory, FakeOpener((500, "")), "call_endpoint", {"method": "GET", "path": "/v1/lots"}
+    )
+    assert response["error_code"] == "upstream_failure"
+    assert response["definitely_no_external_effect"] is True
+    opener = FakeOpener((200, b"%PDF-1.7", {"Content-Type": "application/pdf"}))
+    response, _f, _s = run(
+        make_factory,
+        opener,
+        "call_endpoint",
+        {"method": "GET", "path": f"/v1/files/{UUID_A}/content"},
+    )
+    answer = response["result"]["response"]
+    assert answer["content_type"] == "application/pdf" and answer["size_bytes"] == 8
+    assert response["external_effect_status"] == "succeeded"
+
+
+def test_a_json_attachment_is_saved_as_a_file(make_factory) -> None:
+    body = b'{"invoice": 1}'
+    opener = FakeOpener((200, body, {"Content-Type": "application/json"}))
+    response, _f, sink = run(make_factory, opener, "get_files_id_content", {"id": UUID_A})
+    assert response["ok"] is True
+    assert sink.writes[0]["body"] == body

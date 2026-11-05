@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import math
 import re
@@ -201,11 +202,18 @@ class _Context:
         body: Any = None,
         mutating: bool,
         binary: bool = False,
+        accept_raw: bool = False,
     ) -> tuple[Reply, int]:
         """One request and its duration in milliseconds."""
         started = self.clock()
         reply = self.transport.request(
-            method, path, query=query or [], body=body, mutating=mutating, binary=binary
+            method,
+            path,
+            query=query or [],
+            body=body,
+            mutating=mutating,
+            binary=binary,
+            accept_raw=accept_raw,
         )
         return reply, int((self.clock() - started) * 1000)
 
@@ -525,6 +533,10 @@ def _run_endpoint(context: _Context, endpoint: Endpoint) -> dict[str, Any]:
     return result
 
 
+def _whole_or_none(value: Any) -> bool:
+    return value is None or (isinstance(value, int) and not isinstance(value, bool))
+
+
 def _page_of(data: Any) -> tuple[list[Any], int | None, int | None]:
     """(content, totalElements, totalPages) of a ListPageResponse."""
     if not isinstance(data, Mapping):
@@ -534,15 +546,27 @@ def _page_of(data: Any) -> tuple[list[Any], int | None, int | None]:
             definitely_no_external_effect=True,
             external_effect_status="failed",
         )
+    # A malformed page must never look like "nothing found": an everyday step
+    # would then create a record that already exists.
     content = field(data, "content")
-    content = content if isinstance(content, list) else []
     total = field(data, "totalElements")
     pages = field(data, "totalPages")
-    return (
-        content,
-        total if isinstance(total, int) and not isinstance(total, bool) else None,
-        pages if isinstance(pages, int) and not isinstance(pages, bool) else None,
-    )
+    if (
+        not isinstance(content, list)
+        or not all(isinstance(row, Mapping) for row in content)
+        or not _whole_or_none(total)
+        or not _whole_or_none(pages)
+    ):
+        raise ExtensionError(
+            errors.INVALID_JSON_RESPONSE,
+            "Rivile ERP's list answer is not a page of records (content, totalElements, "
+            "totalPages)",
+            failure_class="provider",
+            retryable=False,
+            definitely_no_external_effect=True,
+            external_effect_status="failed",
+        )
+    return content, total, pages
 
 
 def _more_after(page: int, size: int, content: list[Any], pages: int | None) -> bool:
@@ -706,19 +730,39 @@ def _call_request(
     return method, path, query, operation_input.get("body")
 
 
+#: A non-JSON answer to call_endpoint is returned inline (Base64) up to this size.
+MAX_INLINE_BYTES = 1024 * 1024
+
+
 def _call_endpoint(context: _Context) -> dict[str, Any]:
     method, path, query, body = _call_request(context.operation_input)
-    reply, duration = context.call(method, path, query=query, body=body, mutating=True)
+    # Only a non-GET call can change anything: a GET that fails is a plain read
+    # failure, not an unknown outcome.
+    mutating = method != "GET"
+    reply, duration = context.call(
+        method, path, query=query, body=body, mutating=mutating, accept_raw=True
+    )
+    response: Any = reply.data
+    if isinstance(response, (bytes, bytearray)):
+        raw = bytes(response)
+        response = {
+            "content_type": errors.safe_text(reply.content_type, 120) or None,
+            "size_bytes": len(raw),
+            "base64": base64.b64encode(raw).decode("ascii")
+            if len(raw) <= MAX_INLINE_BYTES
+            else None,
+        }
     result = {
         "endpoint": f"{method} {path}",
-        "response": reply.data,
+        "response": response,
         "http_status": reply.status,
         "duration_ms": duration,
     }
     if not budget.fits(result):
         result["response"] = None
-    # call_endpoint is a declared external effect whatever it sends; "succeeded"
-    # with "may have an effect" is the consistent, conservative pair.
+    # call_endpoint is a declared external effect whatever it sends. As in GAMA's
+    # call_method, "succeeded" with "may have an effect" is the pair Core accepts for
+    # a completed call; it is what a GET reports too.
     return _mark_write(result)
 
 
@@ -745,17 +789,26 @@ def _export_list(context: _Context) -> dict[str, Any]:
     size_total = count = fetched = 0
     complete = False
     total: int | None = None
+    stopped: str | None = None
     while fetched < max_pages:
         query = [("page", str(page)), ("size", str(PAGE_SIZE))]
         if filter_json:
             query.append(("filter", filter_json))
         try:
             reply, _took = context.call("GET", endpoint.path, query=query, mutating=False)
+            content, total, pages_total = _page_of(reply.data)
         except DeadlineReached:
             if fetched == 0:
                 raise
+            stopped = "The step ran out of time"
             break  # save what was read; resume_page continues
-        content, total, pages_total = _page_of(reply.data)
+        except ExtensionError as exc:
+            if fetched == 0:
+                raise
+            # A later page failed (502, timeout, rate limit, malformed page): keep
+            # every page already read and say where to resume.
+            stopped = f"{exc.code}: {exc.message}"
+            break
         page_chunks = [
             (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8") for record in content
         ]
@@ -794,6 +847,7 @@ def _export_list(context: _Context) -> dict[str, Any]:
         "complete": complete,
         "resume_page": None if complete else page,
         "total_elements": total,
+        "stopped_by": stopped,
     }
 
 
