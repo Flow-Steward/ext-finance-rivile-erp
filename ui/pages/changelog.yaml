@@ -8,7 +8,11 @@ components:
   type: markdown
   title: Release history
   body: |
-    ## 0.1.0 — unreleased
+    ## 0.1.1
+
+    Version number only: the same code as 0.1.0, which already contains every review fix.
+
+    ## 0.1.0
 
     First release, not yet verified against a live Rivile ERP company (1.0.0 follows that check).
 
