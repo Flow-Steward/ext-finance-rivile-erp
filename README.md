@@ -47,31 +47,6 @@ it in `X-SessionToken`. There is no sandbox; Rivile ERP's 30-day free trial can 
   sales invoice S-3 created with 12 lines; Posting failed") and are not retried.
 - The API key is removed from every answer before it is parsed or shortened.
 
-## Assumptions not yet verified against a live Rivile ERP company
-
-1. The list `filter` is sent as a JSON array (`[{...},{...}]`), as in Rivile's Python sample and
-   the OpenAPI type; the guide's printed URL shows the objects without brackets.
-2. Pages count from 0 (`page=0` in the guide) and `totalPages` ends paging.
-3. `GET /v1/users/api-keys` answers 2xx for a valid key (used by Test the connection).
-4. `register_payment` sends the amount as `amountCur`; `typeId` 5 is received, 4 sent (from the
-   schema description).
-5. Client debt sums `totalBaseDue` of `/v1/pr-registries` as Rivile reports it; overdue is the
-   part with `overDueDays > 0`.
-6. A new product is created with `bomTypeId` 1 (Single); unit and barcode go into
-   `productUnitOfMeasure`.
-7. Invoice lines take the header's `departmentCode` unless a line names its own.
-8. A request answered with HTTP 429 was not executed (HTTP convention; Rivile documents no rate
-   limit), so it is retried after 1, 2, 4 and 8 seconds — writes included.
-9. Which `statusId` means "posted" is not documented: an existing invoice is reported with its raw
-   `status_id` and `posted: null` unless the step posts it.
-10. Find or create customer / product report `external_effect_status: succeeded` even when they
-    only found the record: Core has no "success without effect" status an extension may report
-    ("suppressed" is reserved to the host), and "failed" would turn a successful run into a failure.
-    The ledger therefore records these steps as completed effects.
-11. An invoice found by number counts as "already created" only when client, number and operation
-    date all match; the same number on another date stops the step. Rivile documents no "already
-    posted" error, so any refusal to post fails the step.
-
 ## Development
 
 The contracts are generated from the pinned OpenAPI document; do not edit them by hand.
