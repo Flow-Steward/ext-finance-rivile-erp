@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+### Changed
+
+- README: internal working notes and the icon note removed.
+- Releases: the release text is this version's section of the changelog, checked before anything is built,
+  followed by GitHub's list of changes since the previous release.
+
 ## 0.1.1
 
 Version number only: the same code as 0.1.0, which already contains every review fix.

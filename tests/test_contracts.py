@@ -252,7 +252,7 @@ def test_product_name_is_spelled_rivile_in_plain_latin() -> None:
 def test_manifest_basics() -> None:
     manifest = _load("extension.yaml")
     assert manifest["extension_id"] == "flowsteward.rivile-erp"
-    assert manifest["version"] == "0.1.1"
+    assert manifest["version"] == "0.1.2"
     assert manifest["egress"]["hosts"] == [ENDPOINT_HOST]
     assert manifest["listing"]["category"] == "finance"
     categories = json.loads((BUNDLE_ROOT / "tests/reference/categories.json").read_text("utf-8"))
