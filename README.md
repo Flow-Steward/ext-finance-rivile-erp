@@ -62,9 +62,3 @@ From the Flow Steward application checkout:
 ./flow-steward extensions test flowsteward.rivile-erp --root <parent> --non-interactive
 ./core/entrypoints/cli/scripts/lint.sh --checks extension-static,extension-tests --extension-root <abs path>
 ```
-
-## Icon
-
-`icon.png` is the Rivile logo, © Rivile, used to identify the integration. Source:
-https://www.rivile.lt/favicon.svg (the embedded image), scaled to 128×128 on a transparent
-background with its proportions and colour unchanged.
