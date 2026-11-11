@@ -1,10 +1,12 @@
 # Rivile ERP for Flow Steward
 
-`flowsteward.rivile-erp` connects Flow Steward workflows to the **Rivile ERP Public API**
-(`https://erp.rivile.cloud/public-api`), the cloud ERP from Rivile. Every endpoint of Rivile's
-OpenAPI document ([Swagger UI](https://erp.rivile.cloud/public-api/swagger-ui/index.html),
-[guide](https://guide.rivile.cloud/integrative_solutions/api)) is a typed workflow operation —
-**136 endpoints**, 43 reads and 93 writes — plus everyday steps that make several calls for you.
+Bring Rivile ERP cloud accounting and operational records into Flow Steward workflows. Everyday steps find or create customers, suppliers and products, create sales and purchase invoices with document lines and optional posting, register payments, download attached document files and read stock, prices and client debt. Changes-since reads help pass updated records to another system.
+
+The release also exposes a registry of 136 Public API endpoints as typed advanced operations. Its supported families include clients and contacts, products, sales and purchase orders and invoices, deliveries, payments, receivables and payables, inventory adjustments and movements, lots, manufacturing, gift cards, employees, timesheets and workflow statuses. Supported endpoint actions include reads, creation, updates and deletion where the particular API route permits them. List export writes JSONL files for larger exchanges.
+
+Combine these capabilities to turn storefront orders into accounting documents, exchange warehouse availability, build payment-registration workflows or connect operational records to reporting. A company-specific API key determines the connection's access. Invoice steps support optional posting, and advanced operations expose the individual document and line actions when a process needs more control. Lists and file exports provide records for subsequent workflow steps.
+
+Create a company API key in Rivile ERP under Settings, General, API Keys, choose its validity and store it in the project connection. Use a separate connection for each company and confirm that the key permits the document and operational actions your workflow needs.
 
 Rivile GAMA (the on-premise product with Manorivile-Gateway) has its own extension,
 `flowsteward.rivile-gama`.
