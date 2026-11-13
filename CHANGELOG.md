@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.6 — 2026-11-16
+
+### Changed
+
+- Compatible with Flow Steward 0.9.16: the tests load the host's reflected-secret check the way its
+  new version requires and use its new result type, and skip with the reason when it is unavailable.
+- Output budget notes updated for the host's looser 0.9.16 limits; the budgets stay unchanged, so
+  results stay within the limits of earlier hosts too.
+- extension.yaml is kept in the layout `extensions lock-deps` writes, and the contract generator now
+  writes the same layout (no Python dependencies; formatting only).
+
+### Added
+
+- BRANDING.md: the official source of the Rivile icon, its checksums, how the icon was made from
+  it and the applicable usage terms. The icon itself is unchanged.
+
 ## 0.1.5
 
 ### Added
