@@ -244,7 +244,22 @@ def test_the_api_key_is_redacted_from_answers(make_factory, host_secret_guard) -
     text = json.dumps(response)
     assert API_KEY not in text
     assert "[redacted]" in text
-    assert not host_secret_guard(response, [API_KEY])
+    finding = host_secret_guard(response, [API_KEY])
+    assert finding is None, finding
+
+
+def test_a_full_list_page_passes_the_host_secret_check(make_factory, host_secret_guard) -> None:
+    # The largest result the output budget admits must still be checkable by the host,
+    # so it is delivered instead of blocked as extension_secret_check_incomplete.
+    wide = {f"field{i}": f"value-{i}" for i in range(40)}
+    big_page = page(*[dict(wide, id=str(n)) for n in range(100)], total_pages=5)
+    opener = FakeOpener(*[(200, big_page) for _ in range(5)])
+    response, _f, _s = run(
+        make_factory, opener, "get_products", {"fetch_all_pages": True, "max_pages": 5}
+    )
+    assert response["ok"] is True
+    finding = host_secret_guard(response, [API_KEY])
+    assert finding is None, finding
 
 
 def test_a_list_too_large_for_one_output_stops_at_a_page(make_factory) -> None:

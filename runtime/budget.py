@@ -1,13 +1,17 @@
 """Keep one step's result inside what the host accepts.
 
 The host scans every string of an extension response for reflected secrets and
-fails closed past fixed budgets (core ``secret_reflection``: 16,384 candidate
-strings — dict keys and string values — 65,536 traversed nodes, 8 M compared
-code points), and ``main.py`` caps the serialized response at 4.5 MiB. A wide
-Rivile ERP list reaches those limits quickly: 100 rows of 80 fields is already
-16,000 strings. This module measures a result the same way, with a margin for
-the envelope, so multi-page reads stop at a page boundary instead of being
-blocked whole.
+blocks the output unchecked past fixed budgets (core ``secret_reflection``).
+Flow Steward 0.9.16 allows 3,145,728 traversed nodes and 64 Mi compared code
+points (distinct strings times secrets) with no candidate-string count; earlier
+hosts stopped at 16,384 candidate strings (dict keys and string values),
+65,536 nodes and 8 M code points. ``main.py`` caps the serialized response at
+4.5 MiB. The budgets below stay inside the earlier, tighter limits, so one
+release behaves the same on every supported host; on 0.9.16 they leave a wide
+margin. A wide Rivile ERP list still reaches them quickly: 100 rows of 80 fields
+is already 16,000 strings. This module measures a result the same way, with a
+margin for the envelope, so multi-page reads stop at a page boundary instead of
+being blocked whole.
 """
 
 from __future__ import annotations

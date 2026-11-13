@@ -18,35 +18,53 @@ GENERATOR_ROOT = BUNDLE_ROOT / "tests" / "reference"
 if str(GENERATOR_ROOT) not in sys.path:
     sys.path.insert(0, str(GENERATOR_ROOT))
 
+# E402: the bundle root must be on sys.path before the runtime package is importable.
 from runtime.transport import RivileTransport  # noqa: E402
 
 
-def _core_secret_guard():
-    """The host's own value_exposes_secret, loaded from the Flow Steward checkout.
+_CORE_GUARD_PATH = "core/application/extensions/secret_reflection.py"
+_CORE_GUARD_MODULE = "fs_core_secret_reflection"
+
+
+def _core_secret_guard() -> tuple[Any, str]:
+    """The host's own ``find_secret_exposure``, or ``None`` with the reason it is unavailable.
 
     Loaded by file path (no Core package import chain). The gate mounts the
-    checkout at /app; FLOW_STEWARD_ROOT overrides that.
+    checkout at /app; FLOW_STEWARD_ROOT overrides that. The module is registered
+    in ``sys.modules`` before it runs: its slotted dataclass resolves annotations
+    through the module's entry there.
     """
     import importlib.util
     import os
 
     candidates = [os.environ.get("FLOW_STEWARD_ROOT", ""), "/app", *map(str, BUNDLE_ROOT.parents)]
     for root in candidates:
-        path = Path(root) / "core/application/extensions/secret_reflection.py" if root else None
-        if path and path.is_file():
-            spec = importlib.util.spec_from_file_location("fs_core_secret_reflection", path)
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                return module.value_exposes_secret
-    return None
+        path = Path(root) / _CORE_GUARD_PATH if root else None
+        if not (path and path.is_file()):
+            continue
+        spec = importlib.util.spec_from_file_location(_CORE_GUARD_MODULE, path)
+        if spec is None or spec.loader is None:
+            return None, f"{path} cannot be loaded as a module"
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[_CORE_GUARD_MODULE] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception as exc:  # the host module is outside this repository
+            sys.modules.pop(_CORE_GUARD_MODULE, None)
+            return None, f"{path} failed to load: {type(exc).__name__}: {exc}"
+        guard = getattr(module, "find_secret_exposure", None)
+        if guard is None:
+            return None, f"{path} has no find_secret_exposure (Flow Steward older than 0.9.16)"
+        return guard, ""
+    return None, f"Flow Steward checkout with {_CORE_GUARD_PATH} not found; set FLOW_STEWARD_ROOT"
 
 
 @pytest.fixture
 def host_secret_guard():
-    guard = _core_secret_guard()
+    """``find_secret_exposure(value, secrets)``: ``None`` when clean, else a finding."""
+    guard, reason = _core_secret_guard()
     if guard is None:
-        pytest.skip("Flow Steward checkout not found; set FLOW_STEWARD_ROOT")
+        pytest.skip(f"host secret guard unavailable: {reason}")
     return guard
 
 
