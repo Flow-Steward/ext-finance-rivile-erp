@@ -328,3 +328,10 @@ def test_every_path_id_is_a_uuid() -> None:
     for endpoint in catalog.ENDPOINTS_BY_OPERATION.values():
         for _name, _wire, fmt in endpoint.path_params:
             assert fmt == "uuid", endpoint.wire
+
+
+def test_branding_records_the_shipped_icon() -> None:
+    branding = (BUNDLE_ROOT / "BRANDING.md").read_text("utf-8")
+    icon_sha256 = hashlib.sha256((BUNDLE_ROOT / "icon.png").read_bytes()).hexdigest()
+    assert f"`{icon_sha256}`" in branding
+    assert "https://www.rivile.lt/favicon.svg" in branding
