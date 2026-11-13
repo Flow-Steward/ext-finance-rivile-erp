@@ -80,7 +80,7 @@ components:
     - Inputs: `product_code` (optional), `barcode` (optional), `name` (optional), `product_type` (optional), `unit` (optional), `description` (optional)
     - Results: `product_id`, `product_code`, `created`, `matched_by`, `record`
 
-    ### Stock levels
+    ### Read stock levels
 
     Quantities on hand per product and department (GET /v1/inventory-stocks).
 
@@ -90,7 +90,7 @@ components:
     - Inputs: `product_code` (optional), `department_code` (optional), `page` (optional), `max_pages` (optional)
     - Results: `items`, `count`, `totals`, `has_more`, `next_page`, `complete`
 
-    ### Product prices
+    ### Read product prices
 
     Sale prices of a product (GET /v1/sale-prices).
 
@@ -100,7 +100,7 @@ components:
     - Inputs: `product_code`, `price_category_code` (optional), `currency_code` (optional), `department_code` (optional), `page` (optional), `max_pages` (optional)
     - Results: `prices`, `count`, `has_more`, `next_page`, `complete`
 
-    ### Changes since
+    ### Read records changed since a date
 
     Records of one kind changed after a moment, from the list's updatedAt filter (updatedAt GREATER_THAN since).
 
@@ -110,7 +110,7 @@ components:
     - Inputs: `entity`, `since`, `page` (optional), `max_pages` (optional)
     - Results: `records`, `count`, `has_more`, `next_page`
 
-    ### Client debt
+    ### Read client debt
 
     Open amounts of one client from the receivables and payables registry (GET /v1/pr-registries, totalBaseDue), totalled per registry type, with the overdue part.
 

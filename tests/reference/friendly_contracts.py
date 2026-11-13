@@ -498,7 +498,7 @@ def operations() -> list[dict[str, Any]]:
         },
         {
             "operation_id": "stock_levels",
-            "display_name": "Stock levels",
+            "display_name": "Read stock levels",
             "kind": "source",
             "description": "Quantities on hand per product and department (GET /v1/inventory-stocks).",
             "inputs": [
@@ -530,7 +530,7 @@ def operations() -> list[dict[str, Any]]:
         },
         {
             "operation_id": "product_prices",
-            "display_name": "Product prices",
+            "display_name": "Read product prices",
             "kind": "source",
             "description": "Sale prices of a product (GET /v1/sale-prices).",
             "inputs": [
@@ -563,7 +563,7 @@ def operations() -> list[dict[str, Any]]:
         },
         {
             "operation_id": "changes_since",
-            "display_name": "Changes since",
+            "display_name": "Read records changed since a date",
             "kind": "source",
             "description": (
                 "Records of one kind changed after a moment, from the list's updatedAt filter "
@@ -611,7 +611,7 @@ def operations() -> list[dict[str, Any]]:
         },
         {
             "operation_id": "client_debt",
-            "display_name": "Client debt",
+            "display_name": "Read client debt",
             "kind": "source",
             "description": (
                 "Open amounts of one client from the receivables and payables registry "

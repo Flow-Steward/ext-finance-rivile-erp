@@ -1,5 +1,8 @@
 # Rivile ERP for Flow Steward
 
+See the [workflow action guide](docs/workflow-actions.md) for setup, invoice examples,
+paging and advanced-action inputs.
+
 Bring Rivile ERP cloud accounting and operational records into Flow Steward workflows. Everyday steps find or create customers, suppliers and products, create sales and purchase invoices with document lines and optional posting, register payments, download attached document files and read stock, prices and client debt. Changes-since reads help pass updated records to another system.
 
 The release also exposes a registry of 136 Public API endpoints as typed advanced operations. Its supported families include clients and contacts, products, sales and purchase orders and invoices, deliveries, payments, receivables and payables, inventory adjustments and movements, lots, manufacturing, gift cards, employees, timesheets and workflow statuses. Supported endpoint actions include reads, creation, updates and deletion where the particular API route permits them. List export writes JSONL files for larger exchanges.

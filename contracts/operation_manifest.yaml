@@ -1134,7 +1134,7 @@ operations:
   - blocked_address
   - timeout_unknown
 - operation_id: stock_levels
-  display_name: Stock levels
+  display_name: Read stock levels
   description: Quantities on hand per product and department (GET /v1/inventory-stocks).
   operation_kind: source
   category: finance
@@ -1242,7 +1242,7 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: product_prices
-  display_name: Product prices
+  display_name: Read product prices
   description: Sale prices of a product (GET /v1/sale-prices).
   operation_kind: source
   category: finance
@@ -1331,7 +1331,7 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: changes_since
-  display_name: Changes since
+  display_name: Read records changed since a date
   description: Records of one kind changed after a moment, from the list's updatedAt filter (updatedAt
     GREATER_THAN since).
   operation_kind: source
@@ -1430,7 +1430,7 @@ operations:
   - redirect_rejected
   - blocked_address
 - operation_id: client_debt
-  display_name: Client debt
+  display_name: Read client debt
   description: Open amounts of one client from the receivables and payables registry (GET /v1/pr-registries,
     totalBaseDue), totalled per registry type, with the overdue part.
   operation_kind: source

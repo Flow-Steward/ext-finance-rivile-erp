@@ -31,6 +31,7 @@ forms:
     widget_type: text
     required: false
     help_text: The client's name, needed when the client has to be created.
+    placeholder: Example customer Ltd
   - name: client_type
     label: Client type
     widget_type: select
@@ -172,6 +173,7 @@ forms:
     required: true
     help_text: The invoice lines, 1 to 100 — Rivile's limit for creating a document in one request. For
       more, add lines afterwards with the Advanced create-line step.
+    placeholder: '[{"item_code":"PRODUCT01","quantity":2,"price":12.5}]'
   - name: post
     label: Post
     widget_type: boolean
@@ -428,6 +430,7 @@ forms:
     widget_type: text
     required: false
     help_text: The product name, needed when it has to be created.
+    placeholder: Example product
   - name: product_type
     label: Product type
     widget_type: select
@@ -449,7 +452,7 @@ forms:
     required: false
     help_text: A description saved on a new product.
 - operation_id: stock_levels
-  title: Stock levels
+  title: Read stock levels
   fields:
   - name: product_code
     label: Product code
@@ -472,7 +475,7 @@ forms:
     required: false
     help_text: How many pages of 100 records to read at most. Default 10.
 - operation_id: product_prices
-  title: Product prices
+  title: Read product prices
   fields:
   - name: product_code
     label: Product code
@@ -505,7 +508,7 @@ forms:
     required: false
     help_text: How many pages of 100 records to read at most. Default 10.
 - operation_id: changes_since
-  title: Changes since
+  title: Read records changed since a date
   fields:
   - name: entity
     label: What
@@ -550,6 +553,7 @@ forms:
     widget_type: text
     required: true
     help_text: 'Read records changed after this moment: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.SSSZ.'
+    placeholder: '2026-01-01T00:00:00Z'
   - name: page
     label: Page
     widget_type: number
@@ -561,7 +565,7 @@ forms:
     required: false
     help_text: How many pages of 100 records to read at most. Default 10.
 - operation_id: client_debt
-  title: Client debt
+  title: Read client debt
   fields:
   - name: client_code
     label: Client code
