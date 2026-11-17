@@ -138,6 +138,8 @@ TRANSPORT_ERRORS = [
     "blocked_address",
 ]
 WRITE_ERRORS = ["timeout_unknown"]
+#: Steps that stop with a conflict when a document of the same identity is another one.
+CONFLICT_STEPS = {"create_sales_invoice", "create_purchase_invoice"}
 FILE_ERRORS = ["artifact_output_unavailable"]
 
 #: OpenAPI keywords dropped when a schema becomes a contract schema: the platform
@@ -1016,6 +1018,8 @@ def friendly_operation(spec: dict[str, Any]) -> dict[str, Any]:
     op["outputs"] = outputs
     op["result_fields"] = [f"result.{o['name']}" for o in outputs]
     op["error_codes"] = errors_for(write=write, files=files)
+    if spec["operation_id"] in CONFLICT_STEPS:
+        op["error_codes"].append("conflict")
     return op
 
 

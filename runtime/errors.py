@@ -28,6 +28,7 @@ REDIRECT_REJECTED = "redirect_rejected"
 BLOCKED_ADDRESS = "blocked_address"
 ARTIFACT_OUTPUT_UNAVAILABLE = "artifact_output_unavailable"
 INTERNAL_ERROR = "internal_error"
+CONFLICT = "conflict"
 
 SAFE_ERROR_CODES: frozenset[str] = frozenset(
     {
@@ -49,6 +50,7 @@ SAFE_ERROR_CODES: frozenset[str] = frozenset(
         BLOCKED_ADDRESS,
         ARTIFACT_OUTPUT_UNAVAILABLE,
         INTERNAL_ERROR,
+        CONFLICT,
     }
 )
 

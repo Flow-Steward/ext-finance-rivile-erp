@@ -601,7 +601,10 @@ def create_invoice(
     if header.get("documentNo"):
         found = _same_invoice(api, path, noun, header, client_code, progress)
         if found is not None:
-            return _existing_invoice(api, found, path, noun, client, post=post, progress=progress)
+            document = _same_content(api, found, path, noun, header, lines, progress)
+            return _existing_invoice(
+                api, document, path, noun, client, post=post, progress=progress
+            )
     body = {**header, "clientCode": client_code, "lines": lines}
     record = progress.guard(f"Creating the {noun}", lambda: api.write("POST", path, body))
     document_id = text_of(record, "id")
@@ -686,6 +689,114 @@ def _same_invoice(
     )
 
 
+def _conflict(message: str) -> ExtensionError:
+    return ExtensionError(
+        errors.CONFLICT,
+        message,
+        definitely_no_external_effect=True,
+        external_effect_status="failed",
+    )
+
+
+def _number(value: Any) -> Decimal | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return Decimal(repr(value)) if isinstance(value, float) else Decimal(str(value))
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def _line_differences(asked: list[dict[str, Any]], found: Any) -> str:
+    """Why the document's lines are not the lines asked for ("" when they are).
+
+    Every line asked for must match one line of the document of its own: item code,
+    quantity, and the unit, price and discount when they were given. The document
+    must have no other lines.
+    """
+    if not isinstance(found, list) or not found:
+        return "Rivile ERP did not return its lines, so they cannot be compared"
+    if len(found) != len(asked):
+        return f"it has {len(found)} lines, the request {len(asked)}"
+    left = [line for line in found if isinstance(line, Mapping)]
+    for index, line in enumerate(asked):
+        wanted = {
+            "itemCode": line["itemCode"],
+            "qtyAlt": line["qtyAlt"],
+            **{k: line[k] for k in ("uomAltCode", "price", "discountPerc") if k in line},
+        }
+        for candidate in left:
+            if all(
+                text_of(candidate, k).casefold() == str(v).casefold()
+                if k in {"itemCode", "uomAltCode"}
+                else _number(field(candidate, k)) == _number(v)
+                for k, v in wanted.items()
+            ):
+                left.remove(candidate)
+                break
+        else:
+            return (
+                f"no line of it has item {line['itemCode']} with quantity {line['qtyAlt']}"
+                + (f", price {line['price']}" if "price" in line else "")
+                + (f", discount {line['discountPerc']}%" if "discountPerc" in line else "")
+                + f" (line {index + 1} of the request)"
+            )
+    return ""
+
+
+def _same_content(
+    api: Api,
+    found: Mapping[str, Any],
+    path: str,
+    noun: str,
+    header: Mapping[str, Any],
+    lines: list[dict[str, Any]],
+    progress: Progress,
+) -> Mapping[str, Any]:
+    """The full document found by number, client and date, when it is the one asked for.
+
+    The list does not carry lines, so the document is read by its id. Its currency
+    and its lines (item, quantity, unit, price and discount as given, hence the
+    amount) must match the request; otherwise the step stops with a conflict naming
+    the document, and nothing is created or posted.
+    """
+    document_id = text_of(found, "id")
+    step = f"Comparing the existing {noun}"
+    if not document_id:
+        raise progress.fail(
+            _conflict(
+                f"A {noun} with this number exists but Rivile ERP returned no id; "
+                "nothing was created or posted"
+            ),
+            step,
+        )
+    document = progress.guard(
+        f"Reading the existing {noun}",
+        lambda: api.get(encode_path(path + "/{id}", {"id": document_id})),
+    )
+    if not isinstance(document, Mapping):
+        document = {}
+    why = ""
+    currency = text_of(document, "currencyCode")
+    wanted_currency = header.get("currencyCode")
+    if wanted_currency:
+        if currency.casefold() != str(wanted_currency).casefold():
+            why = f"its currency is {currency or 'not given'}, the request's {wanted_currency}"
+    elif field(document, "isCurrency") is True:
+        why = f"it is in {currency or 'a foreign currency'}, the request gives no currency"
+    why = why or _line_differences(lines, field(document, "lines"))
+    if why:
+        raise progress.fail(
+            _conflict(
+                f"A {noun} with number {header.get('documentNo')}, this client and this date "
+                f"already exists (id {document_id}), but it is not the one asked for: {why}. "
+                "Nothing was created or posted; check that document in Rivile ERP"
+            ),
+            step,
+        )
+    return document
+
+
 def _existing_invoice(
     api: Api,
     record: Any,
@@ -696,7 +807,8 @@ def _existing_invoice(
     post: bool,
     progress: Progress,
 ) -> dict[str, Any]:
-    """The invoice a previous run created (number, client and date match); post it if asked.
+    """The invoice a previous run created (number, client, date, currency and lines
+    match); post it if asked.
 
     Rivile does not document which statusId means "posted", so the state is not
     guessed: ``posted`` is null unless this step posts it. Rivile documents no

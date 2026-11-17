@@ -432,9 +432,14 @@ def _invoice_inputs(**extra) -> dict:
     }
 
 
+def _full(listed: dict) -> dict:
+    """The document as GET by id returns it: with the lines of _lines(1)."""
+    return {**listed, "lines": [{"itemCode": "P0", "qtyAlt": 1.5, "price": 10.1}]}
+
+
 def test_invoice_with_the_same_number_and_date_is_returned_not_duplicated(make_factory) -> None:
     existing = {"id": UUID_B, "documentNo": "S-1", "opDate": TODAY, "totalAmount": 12.1}
-    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)))
+    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)), (200, _full(existing)))
     response, _ = run(make_factory, opener, "create_sales_invoice", _invoice_inputs())
     result = response["result"]
     assert result["created"] is False and result["posted"] is None
@@ -471,7 +476,9 @@ def test_several_same_day_matches_are_refused(make_factory) -> None:
 
 def test_existing_invoice_is_posted_when_asked(make_factory) -> None:
     existing = {"id": UUID_B, "documentNo": "S-1", "opDate": "2026-03-01", "statusId": 1}
-    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)), (200, True))
+    opener = FakeOpener(
+        (200, page(CLIENT)), (200, page(existing)), (200, _full(existing)), (200, True)
+    )
     response, _ = run(
         make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-03-01", post=True)
     )
@@ -483,7 +490,9 @@ def test_existing_invoice_is_posted_when_asked(make_factory) -> None:
 def test_a_refused_post_of_an_existing_invoice_fails_the_step(make_factory) -> None:
     existing = {"id": UUID_B, "documentNo": "S-1", "opDate": "2026-03-01"}
     refusal = {"code": "error.sale-invoice.post.period-closed"}
-    opener = FakeOpener((200, page(CLIENT)), (200, page(existing)), (400, refusal))
+    opener = FakeOpener(
+        (200, page(CLIENT)), (200, page(existing)), (200, _full(existing)), (400, refusal)
+    )
     response, _ = run(
         make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-03-01", post=True)
     )

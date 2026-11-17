@@ -207,8 +207,10 @@ def invoice(kind: str) -> dict[str, Any]:
             "number",
             "Number",
             f"The document number. With a number the step first looks for a {noun} with this "
-            "number, client and date: if one exists it is returned (and posted if asked) instead "
-            "of creating a second one; the same number with another date stops the step. "
+            "number, client and date: if one exists with the same currency and lines (item, "
+            "quantity, and unit, price and discount as given) it is returned (and posted if "
+            "asked) instead of creating a second one; any difference, or the same number with "
+            "another date, stops the step with a conflict naming that document. "
             "Without a number Rivile numbers the document.",
             maxLength=50,
         ),

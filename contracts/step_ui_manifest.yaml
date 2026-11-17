@@ -134,9 +134,10 @@ forms:
     widget_type: text
     required: false
     help_text: 'The document number. With a number the step first looks for a sales invoice with this
-      number, client and date: if one exists it is returned (and posted if asked) instead of creating
-      a second one; the same number with another date stops the step. Without a number Rivile numbers
-      the document.'
+      number, client and date: if one exists with the same currency and lines (item, quantity, and unit,
+      price and discount as given) it is returned (and posted if asked) instead of creating a second one;
+      any difference, or the same number with another date, stops the step with a conflict naming that
+      document. Without…'
   - name: date
     label: Date
     widget_type: text
@@ -246,9 +247,10 @@ forms:
     widget_type: text
     required: false
     help_text: 'The document number. With a number the step first looks for a purchase invoice with this
-      number, client and date: if one exists it is returned (and posted if asked) instead of creating
-      a second one; the same number with another date stops the step. Without a number Rivile numbers
-      the document.'
+      number, client and date: if one exists with the same currency and lines (item, quantity, and unit,
+      price and discount as given) it is returned (and posted if asked) instead of creating a second one;
+      any difference, or the same number with another date, stops the step with a conflict naming that
+      document. With…'
   - name: date
     label: Date
     widget_type: text

@@ -267,9 +267,10 @@ operations:
       type: string
       title: Number
       description: 'The document number. With a number the step first looks for a sales invoice with this
-        number, client and date: if one exists it is returned (and posted if asked) instead of creating
-        a second one; the same number with another date stops the step. Without a number Rivile numbers
-        the document.'
+        number, client and date: if one exists with the same currency and lines (item, quantity, and unit,
+        price and discount as given) it is returned (and posted if asked) instead of creating a second
+        one; any difference, or the same number with another date, stops the step with a conflict naming
+        that document. Without a number Rivile numbers the document.'
       maxLength: 50
   - name: date
     value_type: text
@@ -496,6 +497,7 @@ operations:
   - redirect_rejected
   - blocked_address
   - timeout_unknown
+  - conflict
 - operation_id: create_purchase_invoice
   display_name: Create purchase invoice
   description: Creates a purchase invoice with up to 100 lines in one request (POST /v1/purchase-invoices),
@@ -526,9 +528,10 @@ operations:
       type: string
       title: Number
       description: 'The document number. With a number the step first looks for a purchase invoice with
-        this number, client and date: if one exists it is returned (and posted if asked) instead of creating
-        a second one; the same number with another date stops the step. Without a number Rivile numbers
-        the document.'
+        this number, client and date: if one exists with the same currency and lines (item, quantity,
+        and unit, price and discount as given) it is returned (and posted if asked) instead of creating
+        a second one; any difference, or the same number with another date, stops the step with a conflict
+        naming that document. Without a number Rivile numbers the document.'
       maxLength: 50
   - name: date
     value_type: text
@@ -718,6 +721,7 @@ operations:
   - redirect_rejected
   - blocked_address
   - timeout_unknown
+  - conflict
 - operation_id: download_document_file
   display_name: Download document file
   description: Saves a file attached in Rivile ERP as a workflow file (GET /v1/files/{id}/content). Give

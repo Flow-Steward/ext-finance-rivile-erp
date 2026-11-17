@@ -214,6 +214,7 @@ actions:
   - redirect_rejected
   - blocked_address
   - timeout_unknown
+  - conflict
 - action_id: create_purchase_invoice
   title: Create purchase invoice
   description: Creates a purchase invoice with up to 100 lines in one request (POST /v1/purchase-invoices),
@@ -320,6 +321,7 @@ actions:
   - redirect_rejected
   - blocked_address
   - timeout_unknown
+  - conflict
 - action_id: download_document_file
   title: Download document file
   description: Saves a file attached in Rivile ERP as a workflow file (GET /v1/files/{id}/content). Give
