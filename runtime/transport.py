@@ -368,10 +368,10 @@ def _late(mutating: bool, status: int | None) -> None:
     """The step's time ran out during an exchange."""
     if not mutating:
         raise DeadlineReached
-    said = f"accepted the request (HTTP {status}) but its answer" if status else "'s answer"
+    said = f" accepted the request (HTTP {status}) but its answer" if status else "'s answer"
     raise ExtensionError(
         errors.TIMEOUT_UNKNOWN,
-        f"Rivile ERP {said} did not arrive in time; check in Rivile ERP whether it was applied",
+        f"Rivile ERP{said} did not arrive in time; check in Rivile ERP whether it was applied",
         failure_class="transient",
         retryable=False,
         definitely_no_external_effect=False,
