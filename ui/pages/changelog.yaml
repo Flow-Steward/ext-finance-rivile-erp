@@ -8,6 +8,19 @@ components:
   type: markdown
   title: Release history
   body: |
+    ## 0.1.7 — 2026-11-17
+
+    ### Changed
+
+    - Create sales invoice and Create purchase invoice return, or post, a document with the same
+      number, client and date only when its currency and lines (item, quantity, and unit, price and
+      discount as given) match the request. Any difference, or lines Rivile does not return, stops
+      the step with a conflict naming the document found; nothing is created or posted.
+    - The step deadline bounds the whole exchange with Rivile ERP: name resolution, waiting for
+      headers and every read. A read still waiting then has no effect; a write's outcome is unknown
+      and it is not retried.
+    - A response too large for the step output keeps the write's facts and the result's short values.
+
     ## 0.1.6 — 2026-11-16
 
     ### Changed
