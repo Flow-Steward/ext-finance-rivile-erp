@@ -154,11 +154,12 @@ def test_a_refusal_after_creating_the_client_is_an_unknown_outcome(make_factory)
 
 
 def test_running_out_of_time_after_a_write_is_an_unknown_outcome(make_factory) -> None:
-    clock = iter([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10_000.0, 10_000.0, 10_000.0])
+    # Time is left for the first request (the payment) only; the link never starts.
+    left = iter([1_000.0])
 
     def factory(connection):
         transport = make_factory(opener)(connection)
-        transport.clock = lambda: next(clock, 10_000.0)  # type: ignore[method-assign]
+        transport.remaining = lambda: next(left, 0.0)  # type: ignore[method-assign]
         return transport
 
     opener = FakeOpener((201, {"id": UUID_A, "documentNo": "P-1"}))

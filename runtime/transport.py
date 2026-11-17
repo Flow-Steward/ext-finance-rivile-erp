@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -172,7 +173,7 @@ class RivileTransport:
             headers["Content-Type"] = "application/json; charset=utf-8"
         request = Request(url, method=method, data=encoded, headers=headers)
         self._pace()
-        status, raw, response_headers = self._open(request, mutating=mutating)
+        status, raw, response_headers = self._bounded_open(request, mutating=mutating)
         content_type = _header(response_headers, "Content-Type").lower()
         if binary or (accept_raw and "json" not in content_type):
             return Reply(status=status, data=raw, content_type=content_type)
@@ -205,12 +206,45 @@ class RivileTransport:
         return Reply(status=status, data=data, content_type=content_type)
 
     def _read_expiry(self) -> float | None:
-        """When reading an answer must stop: the request deadline plus its minimum window.
+        """When the exchange must stop: the request deadline plus its minimum window.
 
         The socket timeout applies to each receive, so an answer trickling in could
-        otherwise run past the step's time limit.
+        otherwise run past the step's time limit; the whole exchange is bounded by it.
         """
         return None if self.deadline is None else self.deadline + MIN_CALL_WINDOW_SECONDS
+
+    def _bounded_open(self, request: Request, *, mutating: bool) -> tuple[int, bytes, Any]:
+        """``_open`` with the step deadline over the whole exchange.
+
+        Name resolution (the SDK resolves before it opens, with no timeout of its
+        own), the wait for headers and every read run in a worker thread; the step
+        waits for it only until the deadline plus its minimum window. A read still
+        waiting then has no effect; a write's outcome is unknown and it is not
+        retried. The worker is a daemon: it never keeps the step alive.
+        """
+        expires = self._read_expiry()
+        if expires is None:
+            return self._open(request, mutating=mutating)
+        outcome: dict[str, Any] = {}
+
+        def work() -> None:
+            try:
+                outcome["value"] = self._open(request, mutating=mutating)
+            except BaseException as exc:  # handed to the caller below
+                outcome["error"] = exc
+
+        worker = threading.Thread(target=work, name="rivile-erp-call", daemon=True)
+        worker.start()
+        while worker.is_alive():
+            left = expires - self.clock()
+            if left <= 0:
+                break
+            worker.join(min(0.25, left))
+        if worker.is_alive():
+            _late(mutating, None)
+        if "error" in outcome:
+            raise outcome["error"]
+        return outcome["value"]
 
     def _pace(self) -> None:
         if self._last_sent is not None:
@@ -292,27 +326,29 @@ def read_bounded(
 ) -> bytes:
     """Read at most ``limit`` bytes before ``expires``.
 
-    An oversized or too slow answer to a write is an unknown outcome; to a read it
-    is "out of time" (DeadlineReached) or "too large", with no effect.
+    Before every read the socket's timeout is set to the time left, so one read
+    cannot wait past ``expires`` either. An oversized or too slow answer to a write
+    is an unknown outcome; to a read it is "out of time" (DeadlineReached) or "too
+    large", with no effect.
     """
     buffer = bytearray()
+    sock = _socket_of(response)
     while True:
+        if expires is not None:
+            left = expires - clock()
+            if left <= 0:
+                _late(mutating, status)
+            if sock is not None:
+                try:
+                    sock.settimeout(max(0.5, left))
+                except OSError:  # pragma: no cover - a closed socket fails the read below
+                    pass
         chunk = response.read(min(CHUNK_BYTES, limit + 1 - len(buffer)))
         if not chunk:
             break
         buffer.extend(chunk)
         if expires is not None and clock() > expires:
-            if not mutating:
-                raise DeadlineReached
-            raise ExtensionError(
-                errors.TIMEOUT_UNKNOWN,
-                f"Rivile ERP accepted the request (HTTP {status}) but its answer did not arrive "
-                "in time; check in Rivile ERP whether it was applied",
-                failure_class="transient",
-                retryable=False,
-                definitely_no_external_effect=False,
-                external_effect_status="timeout_unknown",
-            )
+            _late(mutating, status)
         if len(buffer) > limit:
             raise ExtensionError(
                 errors.TIMEOUT_UNKNOWN if mutating else errors.RESPONSE_TOO_LARGE,
@@ -326,6 +362,31 @@ def read_bounded(
                 external_effect_status="timeout_unknown" if mutating else "failed",
             )
     return bytes(buffer)
+
+
+def _late(mutating: bool, status: int | None) -> None:
+    """The step's time ran out during an exchange."""
+    if not mutating:
+        raise DeadlineReached
+    said = f"accepted the request (HTTP {status}) but its answer" if status else "'s answer"
+    raise ExtensionError(
+        errors.TIMEOUT_UNKNOWN,
+        f"Rivile ERP {said} did not arrive in time; check in Rivile ERP whether it was applied",
+        failure_class="transient",
+        retryable=False,
+        definitely_no_external_effect=False,
+        external_effect_status="timeout_unknown",
+    )
+
+
+def _socket_of(response: Any) -> Any:
+    for path in (("fp", "raw", "_sock"), ("fp", "fp", "raw", "_sock"), ("_sock",)):
+        node: Any = response
+        for name in path:
+            node = getattr(node, name, None)
+        if node is not None and hasattr(node, "settimeout"):
+            return node
+    return None
 
 
 def _header(headers: Any, name: str) -> str:
