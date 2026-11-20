@@ -20,6 +20,8 @@ Create a company API key in Rivile ERP under Settings → General → API Keys a
 
 Replace PRODUCT01 with an existing product or service code. Rivile supplies its unit when omitted; select the correct department and currency for your company. Up to 100 lines fit one create request. Leave **Post** disabled for a draft. If a later request fails, inspect the partial-result details and Rivile before repeating: a document or client may already exist.
 
+If **Post** encounters a matching existing invoice, review the document identified by the conflict. If it is still a draft, post it separately in Rivile ERP or use the Advanced posting action with its document ID.
+
 Use the purchase invoice/vendor bill action for supplier documents; check its
 partner, product and tax settings before execution. File inputs accept workflow
 files from earlier steps. Download actions return workflow files for later email,

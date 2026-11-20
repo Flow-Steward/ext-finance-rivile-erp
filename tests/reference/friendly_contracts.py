@@ -206,12 +206,9 @@ def invoice(kind: str) -> dict[str, Any]:
         text(
             "number",
             "Number",
-            f"The document number. With a number the step first looks for a {noun} with this "
-            "number, client and date: if one exists with the same currency and lines (item, "
-            "quantity, and unit, price and discount as given) it is returned (and posted if "
-            "asked) instead of creating a second one; any difference, or the same number with "
-            "another date, stops the step with a conflict naming that document. "
-            "Without a number Rivile numbers the document.",
+            f"Look for a {noun} with this number, client and date. The step can return it if "
+            "currency and lines match. A mismatch stops with a conflict. Leave blank to let "
+            "Rivile assign a number.",
             maxLength=50,
         ),
         text("date", "Date", "The operation date, YYYY-MM-DD. Default: today.", **DATE),
@@ -250,7 +247,11 @@ def invoice(kind: str) -> dict[str, Any]:
                 ),
             },
         },
-        flag("post", "Post", f"Post the {noun} once it is created."),
+        flag(
+            "post",
+            "Post",
+            f"Post the {noun} created by this step. Review and post an existing draft separately.",
+        ),
     ]
     outputs = [
         out("document_id", "text", ["string", "null"], "The document's id (UUID)."),

@@ -475,33 +475,6 @@ def test_several_same_day_matches_are_refused(make_factory) -> None:
     assert all(r["method"] == "GET" for r in opener.requests)
 
 
-def test_existing_invoice_is_posted_when_asked(make_factory) -> None:
-    existing = {"id": UUID_B, "documentNo": "S-1", "opDate": "2026-03-01", "statusId": 1}
-    opener = FakeOpener(
-        (200, page(CLIENT)), (200, page(existing)), (200, _full(existing)), (200, True)
-    )
-    response, _ = run(
-        make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-03-01", post=True)
-    )
-    result = response["result"]
-    assert result["created"] is False and result["posted"] is True and result["status_id"] == 1
-    assert opener.requests[-1]["path"].endswith(f"/v1/sale-invoices/{UUID_B}/post")
-
-
-def test_a_refused_post_of_an_existing_invoice_fails_the_step(make_factory) -> None:
-    existing = {"id": UUID_B, "documentNo": "S-1", "opDate": "2026-03-01"}
-    refusal = {"code": "error.sale-invoice.post.period-closed"}
-    opener = FakeOpener(
-        (200, page(CLIENT)), (200, page(existing)), (200, _full(existing)), (400, refusal)
-    )
-    response, _ = run(
-        make_factory, opener, "create_sales_invoice", _invoice_inputs(date="2026-03-01", post=True)
-    )
-    assert response["error_code"] == "upstream_validation_failed"
-    assert "period-closed" in response["error"]
-    assert response["definitely_no_external_effect"] is True
-
-
 def test_stock_levels_base_and_alternative_units(make_factory) -> None:
     rows = [
         {

@@ -1,5 +1,5 @@
-"""Review 2026-11-17, item 6: a document with the same number, client and date is
-returned (and posted) only when its currency and lines match the request.
+"""Review 2026-11-17, item 6: returning an existing invoice requires matching currency
+and lines. Posting an existing invoice requires a separate action.
 
 Anything else is a conflict naming the document found; it is never posted.
 """
@@ -53,17 +53,29 @@ def _methods(opener: FakeOpener) -> list[str]:
     return [r["method"] for r in opener.requests]
 
 
-def test_6_the_same_document_is_returned_and_posted(make_factory: Any) -> None:
+def test_6_the_same_document_is_returned_read_only(make_factory: Any) -> None:
+    opener = FakeOpener((200, page(CLIENT)), (200, page(_listed())), (200, _document()))
+    response, _ = run(make_factory, opener, "create_sales_invoice", _inputs())
+    assert response["ok"] is True, response
+    result = response["result"]
+    assert result["created"] is False and result["posted"] is None
+    assert result["document_id"] == UUID_B
+    assert opener.requests[2]["path"].endswith(f"/v1/sale-invoices/{UUID_B}")
+    assert _methods(opener) == ["GET", "GET", "GET"]
+
+
+@pytest.mark.parametrize("kind", ["sales", "purchase"])
+def test_post_requires_confirmation_for_a_matching_existing_invoice(
+    make_factory: Any, kind: str
+) -> None:
     opener = FakeOpener(
         (200, page(CLIENT)), (200, page(_listed())), (200, _document()), (200, True)
     )
-    response, _ = run(make_factory, opener, "create_sales_invoice", _inputs(post=True))
-    assert response["ok"] is True, response
-    result = response["result"]
-    assert result["created"] is False and result["posted"] is True
-    assert result["document_id"] == UUID_B
-    assert opener.requests[2]["path"].endswith(f"/v1/sale-invoices/{UUID_B}")
-    assert opener.requests[-1]["path"].endswith(f"/v1/sale-invoices/{UUID_B}/post")
+    response, _ = run(make_factory, opener, f"create_{kind}_invoice", _inputs(post=True))
+    assert response["error_code"] == "conflict", response
+    assert UUID_B in response["error"]
+    assert response["definitely_no_external_effect"] is True
+    assert _methods(opener) == ["GET", "GET", "GET"]
 
 
 DIFFERENT = [

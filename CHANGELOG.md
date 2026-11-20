@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 — 2026-11-20
+
+### Changed
+
+- Create sales invoice and Create purchase invoice can post an invoice they create.
+  Review and post an existing draft separately.
+
 ## 0.1.7 — 2026-11-17
 
 ### Changed

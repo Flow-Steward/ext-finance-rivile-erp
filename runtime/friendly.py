@@ -602,9 +602,16 @@ def create_invoice(
         found = _same_invoice(api, path, noun, header, client_code, progress)
         if found is not None:
             document = _same_content(api, found, path, noun, header, lines, progress)
-            return _existing_invoice(
-                api, document, path, noun, client, post=post, progress=progress
-            )
+            if post:
+                document_id = text_of(found, "id")
+                raise progress.fail(
+                    _conflict(
+                        f"The existing {noun} (id {document_id}) requires confirmation. "
+                        "Review it in Rivile ERP and post it separately if it is still a draft."
+                    ),
+                    f"Posting the {noun}",
+                )
+            return _invoice_result(document, created=False, client=client, lines=0, posted=None)
     body = {**header, "clientCode": client_code, "lines": lines}
     record = progress.guard(f"Creating the {noun}", lambda: api.write("POST", path, body))
     document_id = text_of(record, "id")
@@ -795,32 +802,6 @@ def _same_content(
             step,
         )
     return document
-
-
-def _existing_invoice(
-    api: Api,
-    record: Any,
-    path: str,
-    noun: str,
-    client: dict[str, Any],
-    *,
-    post: bool,
-    progress: Progress,
-) -> dict[str, Any]:
-    """The invoice a previous run created (number, client, date, currency and lines
-    match); post it if asked.
-
-    Rivile does not document which statusId means "posted", so the state is not
-    guessed: ``posted`` is null unless this step posts it. Rivile documents no
-    "already posted" error either, so any refusal to post fails the step with
-    Rivile's message (a 400 proves nothing was written).
-    """
-    document_id = text_of(record, "id")
-    if not post or not document_id:
-        return _invoice_result(record, created=False, client=client, lines=0, posted=None)
-    post_path = encode_path(path + "/{id}/post", {"id": document_id})
-    progress.guard(f"Posting the existing {noun}", lambda: api.write("PATCH", post_path, None))
-    return _invoice_result(record, created=False, client=client, lines=0, posted=True)
 
 
 # ---------------------------------------------------------------------------

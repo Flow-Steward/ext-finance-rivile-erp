@@ -266,11 +266,9 @@ operations:
     schema:
       type: string
       title: Number
-      description: 'The document number. With a number the step first looks for a sales invoice with this
-        number, client and date: if one exists with the same currency and lines (item, quantity, and unit,
-        price and discount as given) it is returned (and posted if asked) instead of creating a second
-        one; any difference, or the same number with another date, stops the step with a conflict naming
-        that document. Without a number Rivile numbers the document.'
+      description: Look for a sales invoice with this number, client and date. The step can return it
+        if currency and lines match. A mismatch stops with a conflict. Leave blank to let Rivile assign
+        a number.
       maxLength: 50
   - name: date
     value_type: text
@@ -375,7 +373,7 @@ operations:
     schema:
       type: boolean
       title: Post
-      description: Post the sales invoice once it is created.
+      description: Post the sales invoice created by this step. Review and post an existing draft separately.
   outputs:
   - name: document_id
     value_type: text
@@ -527,11 +525,9 @@ operations:
     schema:
       type: string
       title: Number
-      description: 'The document number. With a number the step first looks for a purchase invoice with
-        this number, client and date: if one exists with the same currency and lines (item, quantity,
-        and unit, price and discount as given) it is returned (and posted if asked) instead of creating
-        a second one; any difference, or the same number with another date, stops the step with a conflict
-        naming that document. Without a number Rivile numbers the document.'
+      description: Look for a purchase invoice with this number, client and date. The step can return
+        it if currency and lines match. A mismatch stops with a conflict. Leave blank to let Rivile assign
+        a number.
       maxLength: 50
   - name: date
     value_type: text
@@ -599,7 +595,7 @@ operations:
     schema:
       type: boolean
       title: Post
-      description: Post the purchase invoice once it is created.
+      description: Post the purchase invoice created by this step. Review and post an existing draft separately.
   outputs:
   - name: document_id
     value_type: text
